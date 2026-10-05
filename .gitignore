@@ -1,0 +1,55 @@
+# Local configuration and secrets
+.env
+*.key
+*_key
+
+# Model weights and caches (fetched by services/model-init into the models volume)
+models/
+hf_cache/
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.gguf
+*.onnx
+
+# Runtime output: recordings and logs contain real voices, never commit them
+sessions/
+logs/
+run/
+*.pid
+
+# Audio: only the shipped voice references are tracked
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.webm
+!app/voices/*.wav
+
+# Demo videos live in GitHub attachments or YouTube, not in git
+*.mp4
+*.mov
+
+# Evaluation output (FDB v3 sessions, judge reports)
+eval/out/
+eval/sessions/
+eval/**/*_report.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

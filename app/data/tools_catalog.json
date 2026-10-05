@@ -1,0 +1,233 @@
+{
+ "tools": {
+  "web_search": {
+   "domain": "search",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "query": "string"
+   },
+   "latency_s": [
+    1,
+    4
+   ],
+   "failures": [
+    "no results",
+    "timeout"
+   ],
+   "description": "Search the web; returns the top results as title and snippet pairs. Results can be stale or wrong: report them as what the source says."
+  },
+  "unit_convert": {
+   "domain": "utility",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "value": "number",
+    "from": "string",
+    "to": "string"
+   },
+   "latency_s": [
+    0,
+    0.3
+   ],
+   "description": "Convert a quantity between units (cups to grams, Fahrenheit to Celsius, miles to kilometres)."
+  },
+  "get_weather": {
+   "domain": "info",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "location": "string"
+   },
+   "latency_s": [
+    0.5,
+    2
+   ],
+   "description": "Current conditions and today's forecast for a place."
+  },
+  "todo_add": {
+   "domain": "productivity",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "text": "string",
+    "due": "string"
+   },
+   "latency_s": [
+    0,
+    0.5
+   ],
+   "description": "Add an item to the user's to-do list, optionally with a due date."
+  },
+  "list_add": {
+   "domain": "productivity",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "list": "string",
+    "item": "string"
+   },
+   "latency_s": [
+    0,
+    0.5
+   ],
+   "description": "Add an item to a named list (shopping, packing, ...)."
+  },
+  "dice_roll": {
+   "domain": "games",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "expr": "string"
+   },
+   "latency_s": [
+    0,
+    0.2
+   ],
+   "description": "Roll dice in standard notation; returns each die and the total.",
+   "arg_descriptions": {
+    "expr": "dice notation, e.g. '2d6+1'"
+   }
+  },
+  "counter": {
+   "domain": "utility",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "name": "string",
+    "action": "enum:inc|dec|reset|get"
+   },
+   "latency_s": [
+    0,
+    0.2
+   ],
+   "description": "A named tally kept during the session (reps, rows, points): increase, decrease, reset or read it.",
+   "arg_descriptions": {
+    "name": "the tally's name, e.g. 'rows'"
+   }
+  },
+  "record_note": {
+   "domain": "notes",
+   "origin": "v1",
+   "mode": "sync",
+   "args": {
+    "text": "string"
+   },
+   "latency_s": [
+    0,
+    0.5
+   ],
+   "description": "Save a short note to the user's notes."
+  },
+  "ask_frontier": {
+   "origin": "v2",
+   "domain": "background_ai",
+   "mode": "async",
+   "args": {
+    "question": "string",
+    "context?": "string",
+    "depth?": "enum:quick|standard|deep"
+   },
+   "returns": "task_id now; later task_done{answer (200-800 words), confidence, sources?}",
+   "latency_s": [
+    8,
+    180
+   ],
+   "failures": [
+    "timeout",
+    "insufficient context"
+   ],
+   "emits": [
+    "task_done"
+   ],
+   "notes": "Calls a larger frontier model with the full conversation context. The conversation carries on while it runs; the answer is reported briefly and attributed, and read out in full when the user asks for it.",
+   "description": "Ask a much larger, slower and smarter model that sees the whole conversation. Use it for hard questions: real reasoning, planning, expert knowledge, careful maths, weighing options, checking long text, or whenever you are not sure. Don't use it for chit-chat, simple commands or facts you already have. Async: returns a task_id at once; the answer (often long) arrives later as task_done, possibly while someone is talking. Report it in one to three sentences unless the user asks for the whole answer; say it came from the bigger model and keep its caveats.",
+   "arg_descriptions": {
+    "question": "the full question with its constraints and what the answer is for",
+    "context": "anything relevant that isn't obvious from the conversation",
+    "depth": "quick (seconds), standard (under a minute), deep (minutes)"
+   }
+  },
+  "task_status": {
+   "origin": "v2",
+   "domain": "background_ai",
+   "mode": "sync",
+   "args": {
+    "task_id?": "string"
+   },
+   "returns": "list<object{task_id, kind, status: running|done|failed, elapsed_s, eta_s?}>",
+   "latency_s": [
+    0,
+    0.3
+   ],
+   "description": "Status of background tasks (ask_frontier, deep_research, summaries, queries, deploys): running, done or failed, seconds elapsed and an estimate of time left. Use it to answer 'is it done yet?' instead of guessing.",
+   "arg_descriptions": {
+    "task_id": "omit to list all background tasks"
+   }
+  },
+  "cancel_task": {
+   "origin": "v2",
+   "domain": "background_ai",
+   "mode": "sync",
+   "args": {
+    "task_id": "string"
+   },
+   "returns": "ok",
+   "latency_s": [
+    0,
+    0.3
+   ],
+   "failures": [
+    "not found",
+    "already done"
+   ],
+   "description": "Stop a running background task."
+  },
+  "get_time": {
+   "origin": "v2",
+   "domain": "time",
+   "mode": "sync",
+   "args": {
+    "timezone?": "string"
+   },
+   "returns": "{iso_time, weekday}",
+   "latency_s": [
+    0,
+    0.1
+   ],
+   "description": "Current local date, time and weekday, optionally in another time zone. The assistant has no clock of its own."
+  },
+  "stopwatch": {
+   "origin": "v2",
+   "domain": "time",
+   "mode": "sync",
+   "args": {
+    "action": "enum:start|stop|lap|read|reset",
+    "name?": "string"
+   },
+   "returns": "{elapsed_s, laps?: list<number>}",
+   "latency_s": [
+    0,
+    0.1
+   ],
+   "description": "A stopwatch: start, stop, lap, read or reset. For timing talks, planks, speeches."
+  },
+  "calculator": {
+   "origin": "v2",
+   "domain": "utility",
+   "mode": "sync",
+   "args": {
+    "expression": "string"
+   },
+   "returns": "{value}",
+   "latency_s": [
+    0,
+    0.1
+   ],
+   "failures": [
+    "parse error"
+   ],
+   "description": "Evaluate an arithmetic expression exactly. Use it rather than mental maths for anything non-trivial."
+  }
+ }
+}
