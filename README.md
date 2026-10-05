@@ -6,9 +6,9 @@ A full-duplex voice assistant that runs on a single RTX 4090.
 git clone https://github.com/speakrail/speakrail && cd speakrail && docker compose up -d
 ```
 
-Then open **http://localhost:8080** and allow the microphone.
+Then open **http://localhost:8080** and allow the microphone. Don't worry if it takes long to launch, the entire package is ~75 GB and it takes a long time to compile audio.cpp, prerender TTS cache and start vLLM.
 
-Speakrail listens while it talks. You can interrupt it, say "mm-hmm" without stopping it, pause mid-sentence without being cut off, and ask it to count your reps while you keep talking. Everything runs locally: speech recognition, the language model and the voice, on one 24 GB GPU.
+Speakrail listens while it talks. You can interrupt it, say "mm-hmm" without stopping it, pause mid-sentence without being cut off, and ask it to count your reps while you keep talking. 
 
 ## How it works
 
@@ -112,3 +112,13 @@ The models it downloads keep their own licenses (details in [NOTICE](NOTICE)):
 - **Breeze TTS 2** (BreezeBlue): code Apache 2.0; model weights and the audio they generate are for research and non-commercial use only. If you want to use speakrail commercially, you will have to swap that for another TTS. Any streaming TTS should work (in theory).
 
 Speech recognition runs on [our fork of audio.cpp](https://github.com/speakrail/audio.cpp) (Apache 2.0, by [ShugoAI LLC](https://github.com/0xShug0/audio.cpp)), which adds the turn-taking head and peek decoding to its Voxtral realtime model. The voice runs on [our fork of Breeze TTS](https://github.com/speakrail/breeze-tts), which adds int8 serving next to an LLM on one card.
+
+## Troubleshooting
+
+**The UI doesn't open, or `docker compose ps` shows the app as `Created`:** the UI port is probably taken by another program. Pick a free port in `.env` (for example `UI_PORT=8085`), then recreate the app container:
+
+```bash
+docker compose up -d --force-recreate app
+```
+
+A container that failed to start on a busy port keeps a broken network setup, so a plain restart is not enough: it has to be recreated.

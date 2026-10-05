@@ -50,7 +50,8 @@ def micro_cfg(q, cfg):
     from claude_tool import check_key
     from session import MicroCfg
     key_ok = check_key(q.get("ck"))
-    return MicroCfg(url=ARGS.mt_url, undo_words=ARGS.undo_words, tool_hold_ms=ARGS.tool_hold_ms,
+    return MicroCfg(url=ARGS.mt_url, lora=os.environ.get("LLM_LORA", "speakrail"),
+                    think_model=os.environ.get("LLM_BASE_MODEL", "speakrail-base"), undo_words=ARGS.undo_words, tool_hold_ms=ARGS.tool_hold_ms,
                     persona=ARGS.persona,
                     allow_interject=not ARGS.no_interject, silence_fallback_ms=cfg.silence_ms,
                     notes=ARGS.notes, phrase_cache=not ARGS.no_phrase_cache, safety_yield_s=ARGS.safety_yield_s,
@@ -190,6 +191,10 @@ def main():
     app.router.add_get("/", page("live/index.html"))
     app.router.add_get("/ws", ws_handler)
     app.router.add_static("/static", os.path.join(HERE, "web", "live"))
+    # the same UI under /live/, for reverse proxies that mount it there
+    app.router.add_get("/live/", page("live/index.html"))
+    app.router.add_get("/live/ws", ws_handler)
+    app.router.add_static("/live/static", os.path.join(HERE, "web", "live"))
     app.router.add_get("/debug", lambda r: web.HTTPFound("/debug/"))
     app.router.add_get("/debug/", page("index.html"))
     app.router.add_get("/debug/ws", ws_handler)
