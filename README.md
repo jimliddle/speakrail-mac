@@ -1,7 +1,6 @@
 # Speakrail Mac
 
-An unofficial Apple Silicon port of [Speakrail](https://github.com/speakrail/speakrail),
-maintained by Jim Liddle. It uses Speakrail's original conversation controller,
+An unofficial Apple Silicon port of [Speakrail](https://github.com/speakrail/speakrail). It uses Speakrail's original conversation controller,
 models and browser UI, with Metal and MLX in place of the NVIDIA backends.
 
 ## Status
