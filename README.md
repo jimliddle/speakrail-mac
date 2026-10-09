@@ -67,7 +67,7 @@ Pre-rendered phrase caching is disabled.
 
 ## Local Inference, Not Network-Isolated
 
-**Gemma is local; it is not a connection to Google's Gemini service.**
+**Gemma is local, it is not a connection to Google's Gemini service.**
 All three inference servers listen on loopback. Session recording is off by
 default. The main UI rejects foreign browser origins and allows one session
 at a time. This is a local prototype, not a remotely exposed service.
