@@ -1,9 +1,10 @@
 /* speakrail live UI: the same ws protocol as web/app.js (16 kHz int16 up, 24 kHz int16 + JSON events down), presented as
  * a blob that moves with the voices, subtitles for the reply, and a card per web search. Settings live in the top-left
  * dropdown and are sent as query params on connect (they only apply on the next start). */
+// Modified by Jim Liddle, 2026-10-09: disabled search and stale-session/audio cleanup.
 const $ = (id) => document.getElementById(id);
 const CAPTURE_HZ = 16000;
-const SETTINGS = ["barge", "search", "showlog"];
+const SETTINGS = ["barge", "showlog"]; // Search stays disabled in this isolated prototype.
 
 let ws, micCtx, playCtx, worklet, stream, analyser, anaBuf, outGain;
 let sources = [], playCursor = 0, uttStart = 0, uttId = 0;
@@ -214,8 +215,9 @@ async function start() {
   const ck = new URLSearchParams(location.search).get("ck");     // the claude_code access key, if the page has one
   const wsUrl = new URL("ws" + qs + (ck ? "&ck=" + encodeURIComponent(ck) : ""), location.href); wsUrl.protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(wsUrl); ws.binaryType = "arraybuffer";
+  const sessionSocket = ws;
   ws.onmessage = onMessage;
-  ws.onclose = () => { if (running) stop(true); };
+  ws.onclose = () => { if (ws === sessionSocket && running) stop(true); };
   ws.onerror = () => setState("error");
   await new Promise((r) => (ws.onopen = r));
 
@@ -236,10 +238,15 @@ async function start() {
 
 function stop(fromClose) {
   running = false;
-  if (ws && !fromClose && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "stop" }));
+  if (ws) {
+    ws.onmessage = null; // Late audio/status from the closed session must not restart playback.
+    if (!fromClose && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "stop" }));
+    ws.close(); ws = null;
+  }
   stopPlayback(); botSpeaking = false;
   if (stream) stream.getTracks().forEach((t) => t.stop());
   if (micCtx) micCtx.close();
+  if (playCtx) playCtx.close();
   lvl.micTarget = 0; lvl.head = 0;
   $("controls").hidden = true; $("go").hidden = false; $("go").disabled = false; lockSettings(false);
   setState("idle");

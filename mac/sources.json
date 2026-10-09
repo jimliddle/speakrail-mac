@@ -1,0 +1,13 @@
+{
+  "upstream_speakrail": "49798e8e72c8a8429cb4d005840a6af389ececb7",
+  "dependencies": {
+    "audio.cpp": {
+      "url": "https://github.com/speakrail/audio.cpp.git",
+      "revision": "ba2ae40d4630874121d2dfadddd10fe97c358b89"
+    },
+    "breeze-mlx-candidate": {
+      "url": "https://github.com/Shoofio/breeze-tts2-fast-streaming-api.git",
+      "revision": "f1818ec44da33302701718e5fb15267ce1cf5e4f"
+    }
+  }
+}

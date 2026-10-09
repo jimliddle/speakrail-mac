@@ -13,6 +13,9 @@ from __future__ import annotations
 import json
 import math
 import time
+# Modified by Jim Liddle, 2026-10-09: opt-in per-session MLX prefix-cache identity.
+import os
+import uuid
 
 
 class Engine:
@@ -20,6 +23,7 @@ class Engine:
         self.base, self.lora, self.served = base.rstrip("/"), lora, served
         self.url = self.base + "/v1/completions"
         self.stop = None; self.n_tokens = None; self.cached = None
+        self.cache_salt = uuid.uuid4().hex if os.environ.get("SPEAKRAIL_CACHE_SESSION") == "1" else None
 
     @property
     def model(self):
@@ -33,7 +37,9 @@ class Engine:
 
     async def warm(self, http, ids):
         """prefill a context into the prefix cache (session start: the system prompt)"""
-        await self._post(http, self.url, {"model": self.model, "prompt": list(ids), "max_tokens": 1, "temperature": 0.0})
+        body = {"model": self.model, "prompt": list(ids), "max_tokens": 1, "temperature": 0.0}
+        if self.cache_salt: body["cache_salt"] = self.cache_salt
+        await self._post(http, self.url, body)
 
     async def decide(self, http, ids, allowed, bias=None, cache_salt=None):
         """-> (decision id, {id: normalized prob over allowed}, {id: raw logprob}, ms)"""
@@ -42,7 +48,7 @@ class Engine:
         body = {"model": self.model, "prompt": list(ids), "max_tokens": 1, "temperature": 0.0,
                 "allowed_token_ids": list(allowed), "logprobs": 20, "return_tokens_as_token_ids": True}
         if bias: body["logit_bias"] = {str(k): v for k, v in bias.items()}
-        if cache_salt: body["cache_salt"] = cache_salt
+        if cache_salt or self.cache_salt: body["cache_salt"] = cache_salt or self.cache_salt
         j = await self._post(http, self.url, body)
         ms = (time.perf_counter() - t0) * 1000
         lp = j["choices"][0].get("logprobs") or {}
@@ -62,7 +68,7 @@ class Engine:
                 "stream_options": {"include_usage": True}}
         if logit_bias: body["logit_bias"] = {str(k): v for k, v in logit_bias.items()}
         if ignore_eos: body["ignore_eos"] = True
-        if cache_salt: body["cache_salt"] = cache_salt
+        if cache_salt or self.cache_salt: body["cache_salt"] = cache_salt or self.cache_salt
         return Stream(self, http, body)
 
 

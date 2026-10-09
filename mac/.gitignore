@@ -1,0 +1,25 @@
+# Runtime assets stay local. Only source, tests, locks and documentation belong here.
+.venv/
+.mlx-venv/
+.tts-venv/
+uv-cache/
+python/
+hf-home/
+models
+tokenizer
+audio.cpp/
+breeze-mlx-candidate/
+test-voices/
+test-tmp/
+node_modules/
+package-lock.json
+*.log
+*.wav
+*.aiff
+*.png
+*-results.json
+*-events.json
+gemma-probe.json
+architecture-parity.json
+asr-mac-config.json
+.env*

@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- Modified by Jim Liddle, 2026-10-09: show the Mac trial's disabled web search. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -22,7 +23,7 @@
       <div class="row"><label for="barge">Barge-in</label>
         <select id="barge"><option value="off">off</option><option value="duck" selected>duck (model decides)</option><option value="word">on word</option><option value="head">on speaking class</option></select></div>
       <div class="row"><label for="search">Web search</label>
-        <select id="search"><option value="searxng" selected>on (SearXNG)</option><option value="off">off</option></select></div>
+        <select id="search" disabled><option value="off" selected>off (isolated voice test)</option></select></div>
       <div class="row check"><label><input type="checkbox" id="showlog"> show turn timings</label></div>
       <div class="hint">Settings apply on the next start. Space = interrupt.</div>
     </div>

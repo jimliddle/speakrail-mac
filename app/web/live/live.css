@@ -1,5 +1,6 @@
 /* Speakrail voice UI: bg #151515, fg #fafafa, Onest from Google Fonts (weights 350/450/500), a light pink bar at the top. */
 
+/* Modified by Jim Liddle, 2026-10-09: wrap active controls on narrow screens. */
 :root{
   --color-bg:#151515; --color-fg:#fafafa; --color-fg-body:#fafafaf2; --color-fg-muted:#fafafab3; --color-fg-subtle:#fafafa80;
   --color-fg-faint:#fafafa59; --color-surface-1:#fafafa08; --color-surface-2:#fafafa0f; --color-surface-3:#fafafa1a;
@@ -100,6 +101,8 @@ main{flex:1;position:relative;min-height:0}
 @media (max-width:1100px){ .brand{display:none} }
 @media (max-width:700px){
   .brand{display:none}
+  .top,.status,.controls{flex-wrap:wrap;gap:8px}
+  .panel{width:min(320px,calc(100vw - 40px))}
   .cards{right:12px;width:min(300px,80vw);top:auto;bottom:22vh}
   .subs{bottom:4vh}
 }

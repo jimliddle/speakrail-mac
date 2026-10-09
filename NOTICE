@@ -66,3 +66,26 @@ Data services
 
 Open-Meteo (weather tool) - https://open-meteo.com
   Weather data by Open-Meteo.com, licensed under CC BY 4.0.
+
+--------------------------------------------------------------------------------
+Unofficial Apple Silicon port
+--------------------------------------------------------------------------------
+
+Mac serving adaptation and additions: Copyright 2026 Jim Liddle.
+Apache License 2.0 for source changes; see mac/PORTING.md for modified files.
+This fork is not endorsed by the original Speakrail authors.
+
+The Mac port additionally installs, but does not vendor:
+  MLX and MLX-LM (Apple): MIT
+    https://github.com/ml-explore/mlx
+    https://github.com/ml-explore/mlx-lm
+  MLX-Audio: MIT
+    https://github.com/Blaizzy/mlx-audio
+  Breeze Mac serving implementation: Apache License 2.0
+    https://github.com/Shoofio/breeze-tts2-fast-streaming-api
+
+The Breeze model and generated speech remain subject to the BreezeBlue
+Research and Non-Commercial License, including the original synthetic voice
+reference. See mac/licenses/BREEZE-MODEL-LICENSE.txt and mac/THIRD_PARTY.md.
+No model weights are included. Upstream copyright and attribution notices
+above are retained unchanged.
