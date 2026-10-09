@@ -80,9 +80,7 @@ weather. Weather data attribution: [Open-Meteo](https://open-meteo.com/),
 The browser also requests Google Fonts for typography. Neither is hosted
 model inference. Model downloads require internet access during setup.
 
-No personal RAG, MCP servers, model launchers, API keys or account settings
-are included in this repository. The upstream Claude Bridge source remains,
-but the Mac launcher does not enable it or connect to an account.
+The upstream Claude Bridge source remains, but the Mac launcher does not enable it or connect to an account.
 
 ## Test Results
 
