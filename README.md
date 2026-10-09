@@ -62,10 +62,10 @@ Use `--port 18181` if port 18180 is occupied.
 The Gemma loader preserves the packed int4 weights rather than requantising
 them. Prefix caching is bounded and separated by session and base/LoRA model.
 The server currently caps prompts at 8,192 tokens and output at 512 tokens,
-uses greedy sampling, and is not a general-purpose vLLM replacement.
-Pre-rendered phrase caching is disabled.
+uses greedy sampling, and is not a general purpose vLLM replacement.
+Pre rendered phrase caching is disabled.
 
-## Local Inference, Not Network-Isolated
+## Local Inference, Not Network Isolated
 
 **Gemma is local, it is not a connection to Google's Gemini service.**
 All three inference servers listen on loopback. Session recording is off by
