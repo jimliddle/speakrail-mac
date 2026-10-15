@@ -102,6 +102,8 @@ $("avatar-preview").onclick = async () => {
   avatarNotice("Preparing speech preview · no microphone");
   try {
     await preview.context.resume();
+    if (!await avatar.load()) throw new Error("The face could not be loaded. Select Orb to use the original visualization.");
+    if (speechPreview !== preview) return;
     const response = await fetch(new URL("avatar-preview", location.href), { signal: preview.abort.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Preview unavailable");
@@ -349,11 +351,12 @@ async function start() {
 
   worklet = new AudioWorkletNode(micCtx, "cap");
   worklet.port.onmessage = (ev) => {
+    if (!running || ws !== sessionSocket || sessionSocket.readyState !== WebSocket.OPEN) return;
     const f = ev.data, src = micCtx.sampleRate === CAPTURE_HZ ? f : downsample(f, micCtx.sampleRate, CAPTURE_HZ);
     const pcm = new Int16Array(src.length); let peak = 0;
     for (let i = 0; i < src.length; i++) { pcm[i] = Math.max(-1, Math.min(1, src[i])) * 32767; peak = Math.max(peak, Math.abs(src[i])); }
     lvl.micTarget = Math.min(1, peak * 2.5);
-    if (ws.readyState === 1) ws.send(pcm.buffer);
+    sessionSocket.send(pcm.buffer);
   };
   micCtx.createMediaStreamSource(stream).connect(worklet);
   worklet.connect(micCtx.destination);
@@ -364,6 +367,12 @@ async function start() {
 
 function stop(fromClose) {
   running = false;
+  if (worklet) {
+    worklet.port.onmessage = null;
+    worklet.port.close();
+    worklet.disconnect();
+    worklet = null;
+  }
   if (ws) {
     ws.onmessage = null; // Late audio/status from the closed session must not restart playback.
     if (!fromClose && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "stop" }));

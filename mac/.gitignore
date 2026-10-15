@@ -12,6 +12,7 @@ breeze-mlx-candidate/
 test-voices/
 test-tmp/
 node_modules/
+npm-cache/
 package-lock.json
 *.log
 *.wav

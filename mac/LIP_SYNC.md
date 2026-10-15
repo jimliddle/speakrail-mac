@@ -1,16 +1,23 @@
 # Optional mesh face and lip-sync trial
 
 The original orb is still the default. Select **Settings → Visualization →
-Mesh face** to try the approved green wireframe portrait. The choice is saved
+Rigged face** to try the green 3D face. The choice is saved
 in this browser. You can switch visualizations during a conversation without
 closing the microphone or restarting a model.
 
-This is a **synchronized visual prototype**, not a production-quality talking
-head. The 24-image contact sheet cannot supply the continuous lip, teeth,
-tongue and cheek deformation of a rigged 3D face. In particular, crossfading
-two raster mouth images can show ghosting. Judge this trial on actual speech
-before adopting it. The timing layer is renderer-independent so a proper
-blend-shape rig can replace the raster renderer later.
+This is a **motion prototype**, not the final character. It uses the CC0 MPFB
+avatar from TalkingHead, rendered by local Three.js files. Authored speech
+shapes deform the lips, teeth and tongue together; eyelids close and the head
+moves slightly at rest. The emerald material and wire overlay are applied
+in the browser. No avatar service is called.
+
+The rig has a different face and hairstyle from the original portrait.
+Matching that design needs a custom model with compatible speech shapes.
+Settings includes an **Original portrait** link for comparison. The old
+contact sheet is retained as a reference but is no longer animated.
+WebGL2 is required; loading or context failure falls back to the original orb.
+The uncompressed rig is about 35 MiB and loads only when selected. The first
+speech preview waits for it to load before scheduling audio.
 
 ## Install and try
 
@@ -38,8 +45,8 @@ aligned mouth shapes, without opening a microphone or voice session.
 **Preview pose** lets you inspect all 24 mouth shapes and expressions.
 
 Then click **Allow microphone & start** for a real conversation. Start with
-Mesh face selected to request aligned audio for that session. If you started
-with the orb, switch to Mesh face, Stop, and Start again to enable alignment.
+Rigged face selected to request aligned audio for that session. If you started
+with the orb, switch to Rigged face, Stop, and Start again to enable alignment.
 During an aligned session you can switch back and forth instantly. The URL
 `?visualizer=blob` temporarily selects the original visualization without
 overwriting the saved setting. `/live/` and its static assets work too.
@@ -87,6 +94,7 @@ npm install
 npx playwright install chromium
 npm run test:visualizer
 npm run test:preview
+npm run test:rig
 ```
 
 The browser check starts the model-free stub server, uses a fake microphone,
@@ -96,3 +104,15 @@ live switching, persisted preferences, Stop cleanup, mobile layout and the
 `/live/` path. Set `SPEAKRAIL_TEST_PYTHON` to a different Python environment
 containing aiohttp, numpy, scipy and the optional PocketSphinx wheel. A URL
 argument uses an already-running stub server instead.
+
+The rig check verifies vertex deformation, shared skinning for the wire
+overlay, matching mouth weights on teeth and tongue, immediate reset, reduced
+motion, visible pixels, animation, desktop/mobile/landscape framing, subtitle
+clearance and fallback after WebGL context loss. These checks do not establish
+natural-looking speech. Real-model conversation and Safari still need a
+separate review. The preview uses the existing bundled audio; its licence is
+separate from the CC0 avatar.
+
+To refresh the vendored runtime after installing the pinned dev dependencies,
+run `npm run vendor:avatar` from `mac`. Sources, hashes and licences are in
+`app/web/live/assets/mesh-face/README.md` and `mac/THIRD_PARTY.md`.

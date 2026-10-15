@@ -21,10 +21,11 @@
     </button>
     <div id="panel" class="panel" hidden>
       <div class="row"><label for="visualizer">Visualization</label>
-        <select id="visualizer"><option value="blob" selected>Orb (original)</option><option value="mesh">Mesh face</option></select></div>
+        <select id="visualizer"><option value="blob" selected>Orb (original)</option><option value="mesh">Rigged face</option></select></div>
       <div id="avatar-preview-controls" hidden>
         <div class="row"><label for="avatar-pose">Preview pose</label><select id="avatar-pose"><option value="auto">Automatic</option></select></div>
         <div class="row"><button id="avatar-preview" class="chip" aria-pressed="false">Preview speech</button></div>
+        <div class="row"><a href="static/assets/mesh-face/portrait-reference.png" target="_blank" rel="noopener">Original portrait</a></div>
       </div>
       <div class="row"><label for="barge">Barge-in</label>
         <select id="barge"><option value="off">off</option><option value="duck" selected>duck (model decides)</option><option value="word">on word</option><option value="head">on speaking class</option></select></div>
@@ -59,6 +60,7 @@
   <div id="log" class="log" hidden></div>
 </main>
 
+<script type="importmap">{"imports":{"three":"./static/vendor/three/three.module.js"}}</script>
 <script src="static/mesh-avatar.js"></script>
 <script src="static/lip-sync-timeline.js"></script>
 <script src="static/live.js"></script>

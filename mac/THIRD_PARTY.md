@@ -17,6 +17,9 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | Onest typography | Original browser Google Fonts resource; no font files added |
 | Optional PocketSphinx 5.0.4 decoder and bundled English models/dictionary | Installed separately from PyPI; BSD-style notices retained in the distribution; used for local phoneme timing |
 | Mesh face contact sheet | AI-generated character artwork requested for this visualization; bundled locally |
+| Portrait reference | Owner-supplied original character artwork, copied unchanged for local comparison |
+| MPFB avatar (`mpfb.glb`) | CC0, per the pinned TalkingHead README; created with Blender and MPFB; see asset README and bundled CC0 text |
+| Three.js 0.180.0, GLTFLoader and BufferGeometryUtils | MIT; unmodified runtime files and licence in `app/web/live/vendor/three` |
 
 The included `licenses/BREEZE-MODEL-LICENSE.txt` is an unmodified copy from
 the tested model snapshot. It restricts commercial deployment and generated
@@ -32,6 +35,8 @@ Sources:
 - https://github.com/ml-explore/mlx
 - https://github.com/ml-explore/mlx-lm
 - https://github.com/Blaizzy/mlx-audio
+- https://github.com/met4citizen/TalkingHead/tree/2afe6d79779313db8909badebf46f9805a6c7b70
+- https://github.com/mrdoob/three.js/tree/r180
 
 Model weights and newly generated audio are intentionally excluded from this
 fork. Retaining the code's Apache licence does not remove model/output terms.
