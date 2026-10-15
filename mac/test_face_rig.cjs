@@ -27,10 +27,20 @@ const net = require('node:net');
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
     page.on('pageerror', e => report.errors.push(e.message));
+    page.on('console', message => {
+      if (message.type() === 'error' && /THREE|GLSL|shader/i.test(message.text())) report.errors.push(message.text());
+    });
     page.on('requestfailed', r => report.failedRequests.push(r.url()));
     await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
     await page.goto(url);
     await page.waitForFunction(() => avatar.ready, null, { timeout: 60000 });
+    assert.equal(await page.locator('#avatar-appearance').inputValue(), 'portrait');
+    assert(await page.evaluate(() => {
+      const part = avatar.portraitParts.find(p => p.mesh.name === 'Human');
+      return avatar.hairCard.visible && !avatar.model.getObjectByName('Human_wire').visible
+        && part.mesh.material.map.image.complete && part.mesh.material.map.image.naturalWidth === 1254
+        && part.mesh.geometry.getAttribute('uv') === part.projectedUV;
+    }), 'Original portrait texture is loaded and projected');
     report.geometry = await page.evaluate(() => {
       const a = avatar, v = new a.THREE.Vector3();
       const mesh = a.targets.find(m => m.name === 'Human');
@@ -111,19 +121,37 @@ const net = require('node:net');
     await page.waitForTimeout(200);
     await page.locator('#gear').click();
     await page.screenshot({ path: path.join(__dirname, 'rig-mouth-aa.png') });
+    await page.locator('#gear').click();
+    await page.locator('#avatar-appearance').selectOption('rig');
+    assert(await page.evaluate(() => {
+      const part = avatar.portraitParts.find(p => p.mesh.name === 'Human');
+      return !avatar.hairCard.visible && avatar.model.getObjectByName('Human_wire').visible
+        && part.mesh.material === part.material && part.mesh.geometry.getAttribute('uv') === part.uv;
+    }), 'Plain rig restores original material and UVs');
+    await page.reload();
+    await page.waitForFunction(() => avatar.ready);
+    assert.equal(await page.locator('#avatar-appearance').inputValue(), 'rig', 'Appearance persists');
+    await page.locator('#gear').click();
+    await page.locator('#avatar-appearance').selectOption('portrait');
+    await page.locator('#avatar-pose').selectOption('15');
+    await page.waitForFunction(() => avatar.portraitBlink.value === 1);
+    await page.locator('#gear').click();
+    await page.screenshot({ path: path.join(__dirname, 'portrait-closed-eyes.png') });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     report.motion = await page.evaluate(async () => {
       previewPose = null;
+      avatar.nextBlink = performance.now() + 60000; avatar.blinkAt = null;
       await new Promise(r => requestAnimationFrame(r));
       const canvas = document.querySelector('#blob');
       const before = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
-      await new Promise(r => setTimeout(r, 700));
+      previewPose = 15;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       const after = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
       let changed = 0;
       for (let i = 0; i < before.length; i += 4) if (Math.abs(before[i + 1] - after[i + 1]) > 8) changed++;
       return { changedPixels: changed };
     });
-    assert(report.motion.changedPixels > 100, 'Idle motion changes rendered pixels');
+    assert(report.motion.changedPixels > 100, 'Portrait blink changes rendered pixels');
     await page.evaluate(() => avatar.renderer.forceContextLoss());
     await page.waitForFunction(() => document.body.dataset.visualizer === 'blob');
     await page.evaluate(() => { document.querySelector('#visualizer').value = 'mesh'; applyVisualizer(); });
@@ -137,7 +165,7 @@ const net = require('node:net');
     assert(await page.locator('#avatar-notice').isVisible(), 'Load failure explains fallback');
     assert.deepEqual(report.errors, []);
     console.log(JSON.stringify(report, null, 2));
-    console.log('PASS: geometry, teeth/tongue, wire skinning, reset, reduced motion, framing, speech controls, pixel motion, WebGL loss fallback');
+    console.log('PASS: portrait texture, appearance toggle/persistence, geometry, teeth/tongue, wire skinning, reset, reduced motion, framing, speech controls, blink pixels, WebGL loss fallback');
   } finally {
     fs.writeFileSync(path.join(__dirname, 'face-rig-results.json'), JSON.stringify(report, null, 2));
     if (browser) await browser.close();

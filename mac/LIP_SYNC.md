@@ -7,14 +7,26 @@ closing the microphone or restarting a model.
 
 This is a **motion prototype**, not the final character. It uses the CC0 MPFB
 avatar from TalkingHead, rendered by local Three.js files. Authored speech
-shapes deform the lips, teeth and tongue together; eyelids close and the head
-moves slightly at rest. The emerald material and wire overlay are applied
-in the browser. No avatar service is called.
+shapes deform the lips, teeth and tongue together. No avatar service is called.
 
-The rig has a different face and hairstyle from the original portrait.
-Matching that design needs a custom model with compatible speech shapes.
-Settings includes an **Original portrait** link for comparison. The old
-contact sheet is retained as a reference but is no longer animated.
+**Settings → Appearance** selects between **Portrait** (the default face
+appearance) and **Plain rig**. The choice is saved independently of the
+Orb/Rigged face selection and can change during speech without restarting it.
+
+Portrait projects the original woman's image onto the facial geometry. UVs
+are registered at rest, including a local correction at the lip seam, so the
+texture follows the mouth deformations. A masked background plane retains
+the hair silhouette without placing a second mouth behind the moving lips.
+A shader covers the photographed eyes with sampled skin and a lid line during
+blinks. Teeth and tongue retain their own geometry and subdued materials.
+The original PNG is unchanged, and Settings still links to it for comparison.
+
+This is a front-facing texture treatment, not a reconstructed 3D likeness.
+Portrait disables head turning to keep the hair and face aligned. Large
+expressions can stretch the texture; blink detail is approximate. Plain rig
+restores the previous materials, hair mesh, wire overlay and subtle idle head
+movement. A fully turnable version of the woman still needs a custom model.
+The old contact sheet is retained as a reference but is no longer animated.
 WebGL2 is required; loading or context failure falls back to the original orb.
 The uncompressed rig is about 35 MiB and loads only when selected. The first
 speech preview waits for it to load before scheduling audio.
@@ -107,8 +119,9 @@ argument uses an already-running stub server instead.
 
 The rig check verifies vertex deformation, shared skinning for the wire
 overlay, matching mouth weights on teeth and tongue, immediate reset, reduced
-motion, visible pixels, animation, desktop/mobile/landscape framing, subtitle
-clearance and fallback after WebGL context loss. These checks do not establish
+motion, portrait texture loading, appearance switching/persistence, blink
+pixels, desktop/mobile/landscape framing, subtitle clearance and fallback
+after WebGL context loss. These checks do not establish
 natural-looking speech. Real-model conversation and Safari still need a
 separate review. The preview uses the existing bundled audio; its licence is
 separate from the CC0 avatar.

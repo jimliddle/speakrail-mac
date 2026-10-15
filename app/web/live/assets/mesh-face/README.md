@@ -30,8 +30,11 @@ loader are vendored separately with their MIT licence.
 `portrait-reference.png` is the owner's supplied "Emerald Wireframe AI
 Face.png", copied without alteration. Its SHA-256 is
 `cf8295b6444fe43447973d0f30a0761393f509fb589568485ed9a956060b575f`.
-This is the intended character design, not a texture for the MPFB model.
-The prototype does not reproduce its identity or hairstyle.
+The Portrait appearance projects this image onto the MPFB face using rest-pose
+UVs. A separate masked plane preserves its hair silhouette. The source file
+is unchanged; all mapping, mouth alignment and blink shading happen at
+runtime. This is a frontal approximation, not a fully sculpted 3D likeness.
+Plain rig remains available in Settings.
 
 ## Earlier sprite trial
 

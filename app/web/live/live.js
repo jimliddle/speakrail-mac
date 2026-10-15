@@ -36,6 +36,13 @@ const avatar = new MeshAvatar(() => {
   $("visualizer").value = "blob"; applyVisualizer();
   avatarNotice("Face artwork could not be loaded. Showing the original orb.");
 });
+const savedAppearance = localStorage.getItem("speakrail.avatarAppearance");
+if (["portrait", "rig"].includes(savedAppearance)) $("avatar-appearance").value = savedAppearance;
+avatar.appearance = $("avatar-appearance").value;
+$("avatar-appearance").onchange = () => {
+  avatar.setAppearance($("avatar-appearance").value);
+  localStorage.setItem("speakrail.avatarAppearance", $("avatar-appearance").value);
+};
 let speechPreview = null, previewPose = null;
 function avatarNotice(text) { $("avatar-notice").textContent = text; $("avatar-notice").hidden = !text; }
 function applyVisualizer() {

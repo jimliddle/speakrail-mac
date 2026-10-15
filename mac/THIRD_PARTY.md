@@ -17,7 +17,7 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | Onest typography | Original browser Google Fonts resource; no font files added |
 | Optional PocketSphinx 5.0.4 decoder and bundled English models/dictionary | Installed separately from PyPI; BSD-style notices retained in the distribution; used for local phoneme timing |
 | Mesh face contact sheet | AI-generated character artwork requested for this visualization; bundled locally |
-| Portrait reference | Owner-supplied original character artwork, copied unchanged for local comparison |
+| Portrait reference and projected face texture | Owner-supplied original character artwork, copied unchanged; projection and blink shading are applied locally at runtime |
 | MPFB avatar (`mpfb.glb`) | CC0, per the pinned TalkingHead README; created with Blender and MPFB; see asset README and bundled CC0 text |
 | Three.js 0.180.0, GLTFLoader and BufferGeometryUtils | MIT; unmodified runtime files and licence in `app/web/live/vendor/three` |
 

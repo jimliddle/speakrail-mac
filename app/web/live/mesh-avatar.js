@@ -22,6 +22,7 @@
       this.loading = null;
       this.pose = 0;
       this.targets = [];
+      this.appearance = "portrait";
       this.nextBlink = 4000;
       this.blinkAt = null;
       this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -115,6 +116,95 @@
         throw new Error("Face asset has no speech shapes");
       }
       this.model.updateMatrixWorld(true);
+      await this.preparePortrait(meshes, clippingPlanes);
+      this.setAppearance(this.appearance);
+    }
+
+    async preparePortrait(meshes, clippingPlanes) {
+      const THREE = this.THREE;
+      const texture = await new THREE.TextureLoader().loadAsync(new URL("assets/mesh-face/portrait-reference.png", baseURL).href);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      this.portraitParts = [];
+      this.portraitBlink = { value: 0 };
+      // Frontal registration: eyes near y=1.65, lip seam near y=1.58.
+      // UVs are calculated once at rest, so the photograph moves with the rig.
+      for (const mesh of meshes) {
+        const name = mesh.name.toLowerCase();
+        if (name.includes("casualsuit")) continue;
+        const hidden = /ponytail|eyebrow|eyelash/.test(name);
+        const project = name === "human" || name.includes("high-poly");
+        const part = { mesh, material: mesh.material, uv: mesh.geometry.getAttribute("uv"), hidden };
+        if (project) {
+          const positions = mesh.geometry.getAttribute("position"), uv = new Float32Array(positions.count * 2);
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i), y = positions.getY(i);
+            const mouth = Math.exp(-(((y - 1.58) / .025) ** 2)) * Math.exp(-((x / .055) ** 4));
+            uv[i * 2] = .5 + x / .32 * (1 + .22 * mouth);
+            uv[i * 2 + 1] = (y - 1.45) / .36 - .024 * mouth;
+          }
+          part.projectedUV = new THREE.BufferAttribute(uv, 2);
+          part.portraitMaterial = new THREE.MeshBasicMaterial({ map: texture, clippingPlanes });
+          part.portraitMaterial.onBeforeCompile = shader => {
+            shader.uniforms.portraitBackground = { value: new THREE.Color(0x050907) };
+            shader.uniforms.portraitBlink = this.portraitBlink;
+            shader.vertexShader = "varying vec3 portraitRest;\n" + shader.vertexShader.replace(
+              "#include <begin_vertex>", "#include <begin_vertex>\nportraitRest = position;");
+            shader.fragmentShader = "varying vec3 portraitRest; uniform vec3 portraitBackground; uniform float portraitBlink;\n" + shader.fragmentShader.replace(
+              "#include <map_fragment>", `#include <map_fragment>
+                float interior=(1.0-smoothstep(.12,.135,portraitRest.z))
+                  *(1.0-smoothstep(.018,.03,abs(portraitRest.x)))
+                  *smoothstep(1.54,1.55,portraitRest.y)*(1.0-smoothstep(1.60,1.61,portraitRest.y));
+                diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.001,.003,.002),interior);
+                vec2 eye=vec2((abs(portraitRest.x)-.035)/.024,(portraitRest.y-1.65)/.013);
+                float lid=(1.0-smoothstep(.75,1.1,length(eye)))*portraitBlink;
+                vec3 skin=texture2D(map,vec2(vMapUv.x,vMapUv.y+.13)).rgb;
+                float lash=1.0-smoothstep(.001,.0025,abs(portraitRest.y-1.648-.003*eye.x*eye.x));
+                skin=mix(skin,vec3(.001,.005,.002),lash);
+                diffuseColor.rgb=mix(diffuseColor.rgb,skin,lid);
+                float ink=smoothstep(.001,.009,max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b)));
+                diffuseColor.rgb=mix(portraitBackground,diffuseColor.rgb,ink);
+              `);
+          };
+        } else if (/teeth|tongue/.test(name)) {
+          part.portraitMaterial = new THREE.MeshBasicMaterial({ color: name.includes("teeth") ? 0x5d8468 : 0x122319, clippingPlanes });
+        }
+        this.portraitParts.push(part);
+      }
+      // A masked card retains the portrait's hair silhouette. The opaque centre
+      // is removed so open lips and eyes cannot reveal a second, static face.
+      const material = new THREE.ShaderMaterial({
+        uniforms: { portrait: { value: texture } }, transparent: true, depthWrite: false,
+        vertexShader: `varying vec2 portraitUV;
+          void main() { portraitUV=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+        fragmentShader: `uniform sampler2D portrait; varying vec2 portraitUV;
+          void main() {
+            vec4 color=texture2D(portrait,portraitUV);
+            vec2 p=(portraitUV-vec2(.5,.49))/vec2(.235,.32);
+            float hole=smoothstep(.88,1.03,length(p));
+            float ink=smoothstep(.005,.035,max(color.r,max(color.g,color.b)));
+            gl_FragColor=vec4(color.rgb,hole*ink);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }`,
+      });
+      this.portraitTexture = texture;
+      this.hairCard = new THREE.Mesh(new THREE.PlaneGeometry(.32, .36), material);
+      this.hairCard.position.set(0, 1.63, -.07);
+      this.scene.add(this.hairCard);
+    }
+
+    setAppearance(value) {
+      this.appearance = value === "rig" ? "rig" : "portrait";
+      const portrait = this.appearance === "portrait";
+      for (const part of this.portraitParts || []) {
+        part.mesh.visible = !(portrait && part.hidden);
+        part.mesh.material = portrait && part.portraitMaterial ? part.portraitMaterial : part.material;
+        if (part.projectedUV) part.mesh.geometry.setAttribute("uv", portrait ? part.projectedUV : part.uv);
+      }
+      const wire = this.model?.getObjectByName("Human_wire");
+      if (wire) wire.visible = !portrait;
+      if (this.hairCard) this.hairCard.visible = portrait;
     }
 
     setShape(name, value) {
@@ -154,9 +244,10 @@
         }
       }
       this.setShape("eyeBlinkLeft", blink); this.setShape("eyeBlinkRight", blink);
+      if (this.portraitBlink) this.portraitBlink.value = blink;
       if (this.head) {
         this.head.quaternion.copy(this.headRest);
-        if (!this.reducedMotion.matches && previewPose == null) {
+        if (!this.reducedMotion.matches && previewPose == null && this.appearance !== "portrait") {
           this.head.rotateY(Math.sin(t * .00036) * .025);
           this.head.rotateX(Math.sin(t * .00053) * .012);
         }
@@ -187,11 +278,19 @@
           for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
         }
       });
+      for (const part of this.portraitParts || []) {
+        materials.add(part.material);
+        if (part.portraitMaterial) materials.add(part.portraitMaterial);
+        for (const value of Object.values(part.material)) if (value?.isTexture) textures.add(value);
+      }
+      if (this.portraitTexture) textures.add(this.portraitTexture);
       for (const resource of [...geometries, ...materials, ...textures, ...skeletons]) resource.dispose();
       this.renderer?.dispose();
       this.scene = null;
       this.renderer = null;
       this.targets = [];
+      this.portraitParts = [];
+      this.portraitTexture = this.hairCard = null;
       this.renderWidth = this.renderHeight = null;
     }
   }
