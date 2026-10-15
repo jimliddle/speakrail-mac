@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--plan", action="store_true", help="print commands without changing files")
     parser.add_argument("--download-models", action="store_true")
     parser.add_argument("--accept-breeze-noncommercial-license", action="store_true")
+    parser.add_argument("--with-lip-sync", action="store_true", help="install the optional local phoneme aligner")
     args = parser.parse_args()
     if args.download_models and not args.accept_breeze_noncommercial_license:
         parser.error("Read mac/licenses/BREEZE-MODEL-LICENSE.txt, then explicitly pass "
@@ -58,6 +59,9 @@ def main():
         elif not (path / "bin/python").is_file():
             parser.error(f"{path} exists but is not a virtual environment; refusing to overwrite it")
         run("uv", "pip", "install", "--python", path / "bin/python", "-r", ROOT / lock)
+    if args.with_lip_sync:
+        run("uv", "pip", "install", "--python", ROOT / ".venv/bin/python", "--no-deps", "--only-binary=:all:",
+            "-r", ROOT / "requirements-lipsync.lock.txt")
     run("cmake", "-S", ROOT / "audio.cpp", "-B", ROOT / "audio.cpp/build/mac-eval",
         "-DCMAKE_BUILD_TYPE=Release", "-DAUDIOCPP_MODEL_SET=custom",
         "-DAUDIOCPP_MODELS=voxtral_realtime", "-DGGML_METAL=ON",

@@ -20,12 +20,18 @@
       Settings
     </button>
     <div id="panel" class="panel" hidden>
+      <div class="row"><label for="visualizer">Visualization</label>
+        <select id="visualizer"><option value="blob" selected>Orb (original)</option><option value="mesh">Mesh face</option></select></div>
+      <div id="avatar-preview-controls" hidden>
+        <div class="row"><label for="avatar-pose">Preview pose</label><select id="avatar-pose"><option value="auto">Automatic</option></select></div>
+        <div class="row"><button id="avatar-preview" class="chip" aria-pressed="false">Preview speech</button></div>
+      </div>
       <div class="row"><label for="barge">Barge-in</label>
         <select id="barge"><option value="off">off</option><option value="duck" selected>duck (model decides)</option><option value="word">on word</option><option value="head">on speaking class</option></select></div>
       <div class="row"><label for="search">Web search</label>
         <select id="search" disabled><option value="off" selected>off (isolated voice test)</option></select></div>
       <div class="row check"><label><input type="checkbox" id="showlog"> show turn timings</label></div>
-      <div class="hint">Settings apply on the next start. Space = interrupt.</div>
+      <div class="hint">Visualization switches instantly. Start with Mesh face selected to enable lip sync. Preview speech plays a sample without the microphone. Barge-in applies on the next start. Space = interrupt.</div>
     </div>
   </div>
   <div class="brand">Speakrail <span class="dot"></span></div>
@@ -40,7 +46,8 @@
 </header>
 
 <main>
-  <canvas id="blob"></canvas>
+  <canvas id="blob" role="img" aria-label="Voice activity visualization"></canvas>
+  <div id="avatar-notice" class="avatar-notice" role="status" hidden></div>
   <div id="cards" class="cards"></div>
   <div class="center-ui">
     <button id="go" class="start">Allow microphone &amp; start</button>
@@ -52,6 +59,8 @@
   <div id="log" class="log" hidden></div>
 </main>
 
+<script src="static/mesh-avatar.js"></script>
+<script src="static/lip-sync-timeline.js"></script>
 <script src="static/live.js"></script>
 </body>
 </html>

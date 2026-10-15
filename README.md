@@ -50,6 +50,13 @@ installation was built and tested in stages.
 models stay loaded. Ctrl-C in the launch terminal shuts down the stack.
 Use `--port 18181` if port 18180 is occupied.
 
+An optional **Mesh face** visualization uses the green wireframe portrait
+with local phoneme alignment. Switch it on in Settings, or open
+`http://127.0.0.1:18180/?visualizer=mesh`. It includes an audible preview that
+does not use the microphone. See [the lip-sync trial](mac/LIP_SYNC.md) for
+the optional installation, clause-buffering tradeoff and raster-animation
+quality limits. The original orb remains the default.
+
 ## Architecture
 
 | Component | Native Mac path |

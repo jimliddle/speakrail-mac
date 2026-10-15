@@ -13,9 +13,11 @@
 """
 import argparse
 import asyncio
+import base64
 import json
 import os
 import time
+import wave
 
 from aiohttp import web, WSMsgType
 
@@ -23,6 +25,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 HUB = None
 ARGS = None
+ALIGNMENT = None
+PREVIEW_CACHE = web.AppKey("avatar_preview_cache", dict)
 
 
 def page(path):
@@ -88,11 +92,22 @@ async def ws_handler(request):
         from types import SimpleNamespace
         from stub import StubSession
         sess = StubSession(SimpleNamespace(delay_ms=480, barge_in=q.get("barge", ARGS.barge)), send)
+        if q.get("lipsync") == "phoneme":
+            send({"type": "lip_sync_status", "available": False, "reason": "stub"})
     else:
         from session import MicroSession
         cfg = session_cfg(q)
         log_dir = os.path.join(ARGS.sessions_dir, f"session-{stamp}") if ARGS.sessions_dir else None
-        sess = MicroSession(cfg, HUB, send, log_dir=log_dir, mcfg=micro_cfg(q, cfg))
+        mcfg = micro_cfg(q, cfg)
+        if q.get("lipsync") == "phoneme" and alignment_service() is not None:
+            from lipsync_session import LipSyncSession
+            mcfg.phrase_cache = False
+            sess = LipSyncSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg, alignment_service=ALIGNMENT)
+            send({"type": "lip_sync_status", "available": True})
+        else:
+            sess = MicroSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg)
+            if q.get("lipsync") == "phoneme":
+                send({"type": "lip_sync_status", "available": False})
     try:
         await sess.start()
     except Exception as e:
@@ -111,6 +126,8 @@ async def ws_handler(request):
                 c = m.get("cmd")
                 if c == "play_start":
                     sess.note_play_start(int(m["utt"]), float(m.get("delay_ms", 0)))
+                elif c == "play_segment" and hasattr(sess, "note_play_segment"):
+                    sess.note_play_segment(int(m["utt"]), int(m["segment"]), float(m["remaining_ms"]))
                 elif c == "interrupt":
                     sess.counters["barge_ins"] += 1
                     sess._cancel_reply("interrupt button")
@@ -141,6 +158,41 @@ async def on_startup(app):
         HUB = TTSHub(asyncio.get_running_loop(), ARGS.voice)
         await HUB.wait_ready()
     print(f"speakrail{' (stub mode, no models)' if ARGS.stub else ''}: open http://{ARGS.host}:{ARGS.port}/", flush=True)
+
+
+def alignment_service():
+    global ALIGNMENT
+    from lipsync import AlignmentService, available
+    if not available():
+        return None
+    if ALIGNMENT is None:
+        ALIGNMENT = AlignmentService()
+    return ALIGNMENT
+
+
+async def avatar_preview(request):
+    """Audible, phoneme-timed preview using only the already-bundled voice sample."""
+    service = alignment_service()
+    if service is None:
+        return web.json_response({"error": "Install the optional lip-sync package; see mac/LIP_SYNC.md."}, status=503)
+    cache = request.app[PREVIEW_CACHE]
+    if "data" not in cache:
+        with wave.open(os.path.join(HERE, "voices", "female_a.wav")) as sample:
+            pcm = sample.readframes(sample.getnframes())
+        with open(os.path.join(HERE, "voices", "female_a.txt")) as transcript:
+            text = transcript.read().strip()
+        try:
+            result = await service.align(pcm, text)
+        except Exception:
+            return web.json_response({"error": "The local preview alignment failed. See the server log."}, status=503)
+        cache["data"] = {"text": text, "sample_rate": 24000,
+                         "pcm": base64.b64encode(pcm).decode("ascii"), **result}
+    return web.json_response(cache["data"])
+
+
+async def on_cleanup(app):
+    if ALIGNMENT is not None:
+        ALIGNMENT.close()
 
 
 def env_int(name, default):
@@ -187,12 +239,16 @@ def main():
     if not ARGS.stub and not ARGS.voice:
         ap.error("--voice (or VOICE) is required unless --stub")
     app = web.Application()
+    app[PREVIEW_CACHE] = {}
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.router.add_get("/", page("live/index.html"))
+    app.router.add_get("/avatar-preview", avatar_preview)
     app.router.add_get("/ws", ws_handler)
     app.router.add_static("/static", os.path.join(HERE, "web", "live"))
     # the same UI under /live/, for reverse proxies that mount it there
     app.router.add_get("/live/", page("live/index.html"))
+    app.router.add_get("/live/avatar-preview", avatar_preview)
     app.router.add_get("/live/ws", ws_handler)
     app.router.add_static("/live/static", os.path.join(HERE, "web", "live"))
     app.router.add_get("/debug", lambda r: web.HTTPFound("/debug/"))

@@ -1,0 +1,3 @@
+# Kept optional. This version has native CPython 3.12 universal2 macOS wheels.
+# Decoder-only use does not require the sounddevice/PortAudio microphone extras.
+pocketsphinx==5.0.4

@@ -4,12 +4,15 @@
 // Modified by Jim Liddle, 2026-10-09: disabled search and stale-session/audio cleanup.
 const $ = (id) => document.getElementById(id);
 const CAPTURE_HZ = 16000;
-const SETTINGS = ["barge", "showlog"]; // Search stays disabled in this isolated prototype.
+const SETTINGS = ["barge", "showlog", "visualizer"]; // Search stays disabled in this isolated prototype.
 
 let ws, micCtx, playCtx, worklet, stream, analyser, anaBuf, outGain;
 let sources = [], playCursor = 0, uttStart = 0, uttId = 0;
 const ijUtts = new Set();   // utts of v3 interjections (live tasks): never cut by the next utt
 let running = false;
+let replyPending = false, uiState = "idle", alignedSession = false;
+let audioWindows = [];
+const lipTimeline = new LipSyncTimeline(), pendingLipSync = new Map();
 
 // ---------------------------------------------------------------- settings dropdown
 const panel = $("panel"), gear = $("gear");
@@ -19,10 +22,103 @@ document.addEventListener("click", () => { panel.hidden = true; gear.setAttribut
 for (const id of SETTINGS) {
   const el = $(id), saved = localStorage.getItem("speakrail." + id);
   if (saved != null) { if (el.type === "checkbox") el.checked = saved === "1"; else el.value = saved; }
-  el.onchange = () => { localStorage.setItem("speakrail." + id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); if (id === "showlog") $("log").hidden = !el.checked; };
+  el.onchange = () => { localStorage.setItem("speakrail." + id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); if (id === "showlog") $("log").hidden = !el.checked; if (id === "visualizer") applyVisualizer(); };
 }
 $("log").hidden = !$("showlog").checked;
-function lockSettings(lock) { for (const id of SETTINGS) if (id !== "showlog") $(id).disabled = lock; }
+function lockSettings(lock) {
+  for (const id of SETTINGS) if (!["showlog", "visualizer"].includes(id)) $(id).disabled = lock;
+  $("avatar-preview").disabled = lock; $("avatar-pose").disabled = lock;
+}
+
+// Visualization changes live; phoneme alignment is selected when a session starts.
+const avatar = new MeshAvatar(() => {
+  $("visualizer").value = "blob"; applyVisualizer();
+  avatarNotice("Face artwork could not be loaded. Showing the original orb.");
+});
+let speechPreview = null, previewPose = null;
+function avatarNotice(text) { $("avatar-notice").textContent = text; $("avatar-notice").hidden = !text; }
+function applyVisualizer() {
+  const mesh = $("visualizer").value === "mesh";
+  document.body.dataset.visualizer = mesh ? "mesh" : "blob";
+  $("avatar-preview-controls").hidden = !mesh;
+  $("blob").setAttribute("aria-label", mesh ? "Animated green mesh voice agent" : "Voice activity visualization");
+  avatarNotice(mesh && running && !alignedSession ? "Restart with Mesh face selected to enable lip sync." : "");
+  if (mesh) avatar.load(); else stopSpeechPreview();
+}
+for (const [i, label] of MeshAvatar.poses.entries()) $("avatar-pose").add(new Option(label, String(i)));
+$("avatar-pose").onchange = () => {
+  stopSpeechPreview();
+  previewPose = $("avatar-pose").value === "auto" ? null : Number($("avatar-pose").value);
+  avatarNotice(previewPose == null ? "" : "Pose preview · no microphone");
+};
+const requestedVisualizer = new URLSearchParams(location.search).get("visualizer");
+if (["blob", "mesh"].includes(requestedVisualizer)) $("visualizer").value = requestedVisualizer;
+if (!["blob", "mesh"].includes($("visualizer").value)) $("visualizer").value = "blob";
+applyVisualizer();
+
+function outputTime(context) {
+  if (!context || context.state !== "running") return 0;
+  const stamp = context.getOutputTimestamp?.();
+  return stamp?.contextTime > 0 ? Math.min(context.currentTime, stamp.contextTime + (performance.now() - stamp.performanceTime) / 1000)
+    : Math.max(0, context.currentTime - (context.baseLatency || 0) - (context.outputLatency || 0));
+}
+function refreshPlayback() {
+  const now = outputTime(playCtx);
+  audioWindows = audioWindows.filter(window => window.end > now);
+  botSpeaking = !!playCtx && playCtx.state === "running" && audioWindows.some(window => now >= window.start && now < window.end);
+  if (running && uiState !== "error") setState(botSpeaking ? "speaking" : replyPending ? "thinking" : "listening");
+  // Generation can finish before buffered audio does. Always inspect playback,
+  // including interjections, instead of gating the analyser on reply_delta.
+  if (analyser && playCtx?.state === "running" && botSpeaking) {
+    analyser.getFloatTimeDomainData(anaBuf);
+    let sum = 0; for (const value of anaBuf) sum += value * value;
+    lvl.botTarget = Math.min(1, Math.sqrt(sum / anaBuf.length) * 6);
+  } else lvl.botTarget = 0;
+  return now;
+}
+
+function stopSpeechPreview() {
+  if (speechPreview) {
+    const preview = speechPreview; speechPreview = null;
+    preview.abort.abort();
+    if (preview.source) { preview.source.onended = null; try { preview.source.stop(); } catch {} }
+    preview.context.close();
+    avatar.resetMouth();
+    if (!running) { showBot("", false); subBot.classList.remove("show"); }
+  }
+  $("avatar-preview").textContent = "Preview speech"; $("avatar-preview").setAttribute("aria-pressed", "false");
+  avatarNotice("");
+}
+$("avatar-preview").onclick = async () => {
+  if (speechPreview) { stopSpeechPreview(); return; }
+  if (running) return;
+  const preview = { context: new AudioContext({ sampleRate: 24000 }), abort: new AbortController(), timeline: new LipSyncTimeline() };
+  speechPreview = preview; previewPose = null; $("avatar-pose").value = "auto";
+  $("avatar-preview").textContent = "Stop preview"; $("avatar-preview").setAttribute("aria-pressed", "true");
+  avatarNotice("Preparing speech preview · no microphone");
+  try {
+    await preview.context.resume();
+    const response = await fetch(new URL("avatar-preview", location.href), { signal: preview.abort.signal });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Preview unavailable");
+    if (speechPreview !== preview) return;
+    const bytes = Uint8Array.from(atob(data.pcm), character => character.charCodeAt(0));
+    const view = new DataView(bytes.buffer), buffer = preview.context.createBuffer(1, bytes.length / 2, data.sample_rate);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < channel.length; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
+    preview.source = preview.context.createBufferSource(); preview.source.buffer = buffer;
+    preview.source.connect(preview.context.destination);
+    preview.start = preview.context.currentTime + 0.05; preview.end = preview.start + buffer.duration;
+    preview.timeline.schedule(preview.start, buffer.duration, data.cues);
+    preview.source.start(preview.start);
+    // Keep the last poses until the sound has cleared the device's output buffer.
+    preview.source.onended = () => setTimeout(() => { if (speechPreview === preview) stopSpeechPreview(); }, 180);
+    showBot(data.text, false); avatarNotice("Speech preview · no microphone");
+  } catch (error) {
+    if (speechPreview !== preview) return;
+    stopSpeechPreview(); avatarNotice(error.message);
+  }
+};
 
 // ---------------------------------------------------------------- blob
 const canvas = $("blob"), ctx = canvas.getContext("2d");
@@ -38,9 +134,21 @@ window.addEventListener("resize", resize); resize();
 function drawBlob(t) {
   const w = canvas.clientWidth, h = canvas.clientHeight, cx = w / 2, cy = h / 2;
   ctx.clearRect(0, 0, w, h);
+  const audioTime = refreshPlayback();
   // smoothing: fast attack, slow release, so a syllable shows and the shape settles gently
   lvl.mic += (lvl.micTarget - lvl.mic) * (lvl.micTarget > lvl.mic ? 0.35 : 0.06);
   lvl.bot += (lvl.botTarget - lvl.bot) * (lvl.botTarget > lvl.bot ? 0.4 : 0.08);
+  if ($("visualizer").value === "mesh" && avatar.ready) {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--color-bg");
+    ctx.fillRect(0, 0, w, h);
+    const previewTime = speechPreview ? outputTime(speechPreview.context) : 0;
+    const previewSpeaking = speechPreview?.start != null && previewTime >= speechPreview.start && previewTime < speechPreview.end;
+    const state = previewSpeaking ? "speaking" : uiState;
+    const mouthWeights = previewSpeaking ? speechPreview.timeline.sample(previewTime) : lipTimeline.sample(audioTime);
+    avatar.draw(ctx, t, w, h, { state, mouthWeights, previewPose: running ? null : previewPose });
+    canvas.dataset.avatarPose = MeshAvatar.poses[avatar.pose];
+    requestAnimationFrame(drawBlob); return;
+  }
   const user = Math.min(1, lvl.mic * 1.6 + lvl.head * 0.4);       // the mic level, lifted by the turn head's P(speaking)
   const bot = Math.min(1, lvl.bot * 1.8);
   const base = Math.min(w, h) * 0.17;
@@ -89,12 +197,6 @@ function drawBlob(t) {
     }
     ctx.strokeStyle = `rgba(250,250,250,${0.12 + bot * 0.25})`; ctx.lineWidth = 1.5; ctx.stroke();
   }
-  // output level from the playback analyser (drives `bot`)
-  if (analyser && botSpeaking) {
-    analyser.getFloatTimeDomainData(anaBuf);
-    let sum = 0; for (let i = 0; i < anaBuf.length; i++) sum += anaBuf[i] * anaBuf[i];
-    lvl.botTarget = Math.min(1, Math.sqrt(sum / anaBuf.length) * 6);
-  } else lvl.botTarget = 0;
   requestAnimationFrame(drawBlob);
 }
 requestAnimationFrame(drawBlob);
@@ -170,25 +272,38 @@ function logTurn(m) {
 }
 
 // ---------------------------------------------------------------- state & events
-function setState(s) { const e = $("state"); e.className = "pill " + s; e.textContent = s; }
+function setState(s) { if (uiState === s) return; uiState = s; const e = $("state"); e.className = "pill " + s; e.textContent = s; }
 
 function onMessage(ev) {
   if (ev.data instanceof ArrayBuffer) { const dv = new DataView(ev.data); playChunk(dv.getUint16(0, true), new Int16Array(ev.data, 4)); return; }
   const m = JSON.parse(ev.data);
   switch (m.type) {
     case "ready": break;
+    case "lip_sync_status":
+      alignedSession = m.available;
+      if (!m.available) avatarNotice(m.reason === "stub" ? "Stub mode has no spoken phonemes. Use Preview speech to test lip sync."
+        : "Lip sync is not installed. See mac/LIP_SYNC.md. Mouth animation is paused.");
+      break;
+    case "lip_sync": {
+      if (!pendingLipSync.has(m.utt)) pendingLipSync.set(m.utt, []);
+      pendingLipSync.get(m.utt).push(m);
+      if (m.method === "unavailable") avatarNotice("Lip timing could not be aligned for this clause. Mouth animation is paused.");
+      else if (m.method === "acoustic-phoneme") avatarNotice("Lip sync is using audio-only timing for this clause.");
+      else avatarNotice("");
+      break;
+    }
     case "head": lvl.head = m.p[0]; break;
     case "word": showUser(userRaw + m.raw); break;
     case "endpoint": showUser(m.text); break;
     case "backchannel": showUser(""); break;
     case "interject": ijUtts.add(m.utt); showBot(m.text, false); fadeBotLater(3000); break;
-    case "reply_start": setState("thinking"); botRaw = ""; break;
-    case "reply_delta": if (!botSpeaking) { botSpeaking = true; setState("speaking"); } showBot(botRaw + m.text, false); break;
+    case "reply_start": replyPending = true; if (!botSpeaking) setState("thinking"); botRaw = ""; break;
+    case "reply_delta": showBot(botRaw + m.text, false); break;
     case "search": cardSearch(m); break;
     case "search_done": cardDone(m); break;
     case "tool": cardTool(m); break;
-    case "reply_end": botSpeaking = false; setState("listening"); userRaw = ""; fadeBotLater(6000); break;
-    case "stop_audio": stopPlayback(); botSpeaking = false; setState("listening"); if (botRaw) showBot(botRaw, true); userRaw = ""; fadeBotLater(2500); break;
+    case "reply_end": replyPending = false; refreshPlayback(); userRaw = ""; fadeBotLater(6000); break;
+    case "stop_audio": stopPlayback(); replyPending = false; setState("listening"); if (botRaw) showBot(botRaw, true); userRaw = ""; fadeBotLater(2500); break;
     case "turn": logTurn(m); break;
     case "duck": if (outGain) outGain.gain.setTargetAtTime(m.gain, playCtx.currentTime, 0.03); break;
     case "error": setState("error"); showBot("error in " + m.where + ": " + m.detail, true); break;
@@ -200,6 +315,9 @@ function onMessage(ev) {
 const WORKLET = `class Cap extends AudioWorkletProcessor { process(inputs) { const ch = inputs[0][0]; if (ch) this.port.postMessage(new Float32Array(ch)); return true; } } registerProcessor('cap', Cap);`;
 
 async function start() {
+  stopSpeechPreview(); previewPose = null; $("avatar-pose").value = "auto";
+  lipTimeline.clear(); pendingLipSync.clear(); replyPending = false;
+  alignedSession = $("visualizer").value === "mesh";
   $("go").disabled = true;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: CAPTURE_HZ } });
@@ -211,7 +329,7 @@ async function start() {
   micCtx = new AudioContext({ sampleRate: CAPTURE_HZ });
   await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" })));
 
-  const qs = `?barge=${$("barge").value}&search=${$("search").value}`;
+  const qs = `?barge=${$("barge").value}&search=${$("search").value}` + (alignedSession ? "&lipsync=phoneme" : "");
   const ck = new URLSearchParams(location.search).get("ck");     // the claude_code access key, if the page has one
   const wsUrl = new URL("ws" + qs + (ck ? "&ck=" + encodeURIComponent(ck) : ""), location.href); wsUrl.protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(wsUrl); ws.binaryType = "arraybuffer";
@@ -244,6 +362,7 @@ function stop(fromClose) {
     ws.close(); ws = null;
   }
   stopPlayback(); botSpeaking = false;
+  replyPending = false; alignedSession = false;
   if (stream) stream.getTracks().forEach((t) => t.stop());
   if (micCtx) micCtx.close();
   if (playCtx) playCtx.close();
@@ -257,8 +376,17 @@ function downsample(buf, from, to) {
   for (let i = 0; i < out.length; i++) out[i] = buf[Math.floor(i * ratio)];
   return out;
 }
-function stopPlayback() { for (const s of sources) { try { s.stop(); } catch (e) {} } sources = []; playCursor = 0; uttStart = 0; }
+function stopPlayback() {
+  for (const s of sources) { try { s.stop(); } catch (e) {} }
+  sources = []; audioWindows = []; playCursor = 0; uttStart = 0; botSpeaking = false;
+  lipTimeline.clear(); pendingLipSync.clear(); lvl.bot = 0; lvl.botTarget = 0;
+  avatar.resetMouth();
+}
 function playChunk(utt, pcm) {
+  if (!playCtx || playCtx.state === "closed") return;
+  // The preceding metadata belongs to this exact segment, even when starting
+  // the new utterance clears the previous utterance's playback and cue tracks.
+  const metadata = pendingLipSync.get(utt)?.shift();
   if (utt !== uttId) {                 // a new utt cuts the old one, unless the old one was an interjection: queue after it
     if (ijUtts.has(uttId)) uttStart = 0; else stopPlayback();
     uttId = utt;
@@ -269,7 +397,11 @@ function playChunk(utt, pcm) {
   const now = playCtx.currentTime;
   if (playCursor < now) playCursor = now + 0.008;
   if (uttStart === 0) { uttStart = playCursor; ws.send(JSON.stringify({ cmd: "play_start", utt: utt, delay_ms: (playCursor - now) * 1000 })); }
+  audioWindows.push({ start: playCursor, end: playCursor + buf.duration });
+  if (metadata?.samples === pcm.length && metadata.sample_rate === playCtx.sampleRate) lipTimeline.schedule(playCursor, buf.duration, metadata.cues);
   src.start(playCursor); playCursor += pcm.length / playCtx.sampleRate;
+  if (metadata) ws.send(JSON.stringify({ cmd: "play_segment", utt, segment: metadata.segment,
+    remaining_ms: Math.max(0, playCursor - outputTime(playCtx)) * 1000 }));
   sources.push(src); src.onended = () => { sources = sources.filter((s) => s !== src); };
 }
 

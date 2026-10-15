@@ -15,6 +15,8 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | Upstream `app/voices/female_a.wav` | Synthetic Breeze output; same research/non-commercial terms |
 | Open-Meteo weather data | CC BY 4.0; credit Open-Meteo.com |
 | Onest typography | Original browser Google Fonts resource; no font files added |
+| Optional PocketSphinx 5.0.4 decoder and bundled English models/dictionary | Installed separately from PyPI; BSD-style notices retained in the distribution; used for local phoneme timing |
+| Mesh face contact sheet | AI-generated character artwork requested for this visualization; bundled locally |
 
 The included `licenses/BREEZE-MODEL-LICENSE.txt` is an unmodified copy from
 the tested model snapshot. It restricts commercial deployment and generated
