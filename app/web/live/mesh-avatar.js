@@ -26,6 +26,7 @@
       this.nextBlink = 4000;
       this.blinkAt = null;
       this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      this.motion = new AvatarMotion();
     }
 
     resetMouth() {
@@ -117,6 +118,14 @@
       }
       this.model.updateMatrixWorld(true);
       await this.preparePortrait(meshes, clippingPlanes);
+      // Move the entire composition about the neck, including the hair card.
+      // A frontal roll/translation preserves projection; independent head turns do not.
+      this.presence = new THREE.Group();
+      this.presence.position.y = 1.45;
+      this.scene.add(this.presence);
+      this.scene.updateMatrixWorld(true);
+      this.presence.attach(this.model);
+      this.presence.attach(this.hairCard);
       this.setAppearance(this.appearance);
     }
 
@@ -127,6 +136,7 @@
       texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
       this.portraitParts = [];
       this.portraitBlink = { value: 0 };
+      this.portraitGaze = { value: new THREE.Vector2() };
       // Frontal registration: eyes near y=1.65, lip seam near y=1.58.
       // UVs are calculated once at rest, so the photograph moves with the rig.
       for (const mesh of meshes) {
@@ -148,10 +158,14 @@
           part.portraitMaterial.onBeforeCompile = shader => {
             shader.uniforms.portraitBackground = { value: new THREE.Color(0x050907) };
             shader.uniforms.portraitBlink = this.portraitBlink;
+            shader.uniforms.portraitGaze = this.portraitGaze;
             shader.vertexShader = "varying vec3 portraitRest;\n" + shader.vertexShader.replace(
               "#include <begin_vertex>", "#include <begin_vertex>\nportraitRest = position;");
-            shader.fragmentShader = "varying vec3 portraitRest; uniform vec3 portraitBackground; uniform float portraitBlink;\n" + shader.fragmentShader.replace(
+            shader.fragmentShader = "varying vec3 portraitRest; uniform vec3 portraitBackground; uniform float portraitBlink; uniform vec2 portraitGaze;\n" + shader.fragmentShader.replace(
               "#include <map_fragment>", `#include <map_fragment>
+                vec2 iris=vec2((abs(vMapUv.x-.5)-.111)/.03,(vMapUv.y-.557)/.024);
+                float gazeMask=1.0-smoothstep(.65,1.3,length(iris));
+                diffuseColor.rgb=texture2D(map,vMapUv+portraitGaze*gazeMask*(1.0-portraitBlink)).rgb;
                 float interior=(1.0-smoothstep(.12,.135,portraitRest.z))
                   *(1.0-smoothstep(.018,.03,abs(portraitRest.x)))
                   *smoothstep(1.54,1.55,portraitRest.y)*(1.0-smoothstep(1.60,1.61,portraitRest.y));
@@ -218,6 +232,10 @@
       if (!this.ready) return false;
       this.resetMouth();
       const speaking = state === "speaking" && mouthWeights && previewPose == null;
+      const statePreview = previewPose === 16 || previewPose === 17;
+      const motionState = previewPose === 16 ? "listening" : previewPose === 17 ? "thinking" : state;
+      const moving = !this.reducedMotion.matches && (previewPose == null || statePreview);
+      const motion = this.motion.sample(t, motionState, moving);
       this.pose = previewPose ?? (speaking ? mouthWeights.indexOf(Math.max(...mouthWeights)) : STATE_POSE[state] ?? 0);
       if (speaking) {
         VISEMES.forEach((name, i) => { if (name) this.setShape("viseme_" + name, mouthWeights[i] * GAIN[i]); });
@@ -234,8 +252,13 @@
         23: { mouthSmileLeft: .25, mouthSmileRight: .25, browInnerUp: .1 },
       };
       for (const [name, weight] of Object.entries(shapes[this.pose] || {})) this.setShape(name, weight);
+      if (moving && ["idle", "listening", "thinking", "speaking"].includes(motionState)) {
+        this.setShape("browInnerUp", motion.brow);
+        this.setShape("browDownLeft", .18 * motion.thinking);
+        this.setShape("eyeSquintRight", .12 * motion.thinking);
+      }
       let blink = this.pose === 15 ? 1 : 0;
-      if (!this.reducedMotion.matches && previewPose == null) {
+      if (moving) {
         if (this.blinkAt == null && t >= this.nextBlink) this.blinkAt = t;
         if (this.blinkAt != null) {
           const progress = (t - this.blinkAt) / 180;
@@ -245,11 +268,15 @@
       }
       this.setShape("eyeBlinkLeft", blink); this.setShape("eyeBlinkRight", blink);
       if (this.portraitBlink) this.portraitBlink.value = blink;
+      if (this.portraitGaze) this.portraitGaze.value.set(motion.gazeX, motion.gazeY);
+      this.presence.position.set(motion.x, 1.45 + motion.y, 0);
+      this.presence.rotation.z = motion.roll;
+      this.presence.scale.setScalar(motion.scale);
       if (this.head) {
         this.head.quaternion.copy(this.headRest);
-        if (!this.reducedMotion.matches && previewPose == null && this.appearance !== "portrait") {
-          this.head.rotateY(Math.sin(t * .00036) * .025);
-          this.head.rotateX(Math.sin(t * .00053) * .012);
+        if (moving && this.appearance !== "portrait") {
+          this.head.rotateY(Math.sin(this.motion.time * .36) * .012 * (1 - motion.attention * .8));
+          this.head.rotateX(Math.sin(this.motion.time * .53) * .006);
         }
       }
       const height = Math.max(80, Math.min(700, h - 185));
@@ -291,6 +318,7 @@
       this.targets = [];
       this.portraitParts = [];
       this.portraitTexture = this.hairCard = null;
+      this.presence = null;
       this.renderWidth = this.renderHeight = null;
     }
   }

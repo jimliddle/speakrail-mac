@@ -31,6 +31,25 @@ WebGL2 is required; loading or context failure falls back to the original orb.
 The uncompressed rig is about 35 MiB and loads only when selected. The first
 speech preview waits for it to load before scheduling audio.
 
+## Idle and listening movement
+
+The face now has small breathing-scale changes, slow posture drift, occasional
+gaze shifts and blinks while idle. Listening eases into a slight tilt and lean,
+with less drift, a steadier gaze and a small brow lift. Thinking has a different
+tilt. Transitions take roughly a second to settle instead of snapping between
+poses. These are UI-state cues, not inferred emotions or semantic nods.
+
+The head and hair card share one transform anchored near the neck. Portrait
+uses only frontal tilt, scale and translation, not side-to-side head rotation.
+Its gaze movement is a small, masked texture offset around the irises. The
+phoneme-driven lips remain independent of this motion.
+
+To compare without a microphone, use **Settings → Preview pose → Listening**
+or **Thinking**, then return to **Automatic** for idle. Other manual poses
+remain still for inspection. Reduced-motion preferences disable breathing,
+drift, automatic gaze shifts and automatic blinks. Fixed expression previews
+and speech articulation remain available.
+
 ## Install and try
 
 For a sample-only preview after installing the dependencies, run
@@ -107,6 +126,7 @@ npx playwright install chromium
 npm run test:visualizer
 npm run test:preview
 npm run test:rig
+npm run test:motion
 ```
 
 The browser check starts the model-free stub server, uses a fake microphone,
@@ -125,6 +145,12 @@ after WebGL context loss. These checks do not establish
 natural-looking speech. Real-model conversation and Safari still need a
 separate review. The preview uses the existing bundled audio; its licence is
 separate from the CC0 avatar.
+
+Motion unit tests cover bounded movement, eased entry/exit, frame-rate
+independence, resuming after a background pause and reduced-motion reset.
+Browser checks also compare idle pixels with blinking disabled, verify the
+listening state and shared hair/face transform, and check that listening does
+not activate speech shapes.
 
 To refresh the vendored runtime after installing the pinned dev dependencies,
 run `npm run vendor:avatar` from `mac`. Sources, hashes and licences are in

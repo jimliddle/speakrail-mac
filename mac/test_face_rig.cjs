@@ -114,6 +114,13 @@ const net = require('node:net');
       assert(layout.buttonBottom + 4 < layout.subtitleTop, 'Speech captions and controls do not overlap');
       await page.screenshot({ path: path.join(__dirname, `rig-speaking-${width}.png`) });
       await page.locator('#go').click();
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.evaluate(() => { previewPose = 16; });
+      await page.waitForTimeout(1800);
+      assert(await page.evaluate(() => avatar.motion.output.attention > .7), 'Listening preview becomes attentive');
+      await page.screenshot({ path: path.join(__dirname, `portrait-listening-${width}.png`) });
+      await page.evaluate(() => { previewPose = null; });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
     }
     await page.setViewportSize({ width: 900, height: 900 });
     await page.locator('#gear').click();
@@ -152,6 +159,32 @@ const net = require('node:net');
       return { changedPixels: changed };
     });
     assert(report.motion.changedPixels > 100, 'Portrait blink changes rendered pixels');
+    report.presence = await page.evaluate(async () => {
+      previewPose = null; uiState = 'idle';
+      avatar.nextBlink = performance.now() + 60000; avatar.blinkAt = null;
+      const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await frame();
+      const canvas = document.querySelector('#blob');
+      const pixels = () => canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      const before = pixels();
+      await new Promise(r => setTimeout(r, 1300));
+      const after = pixels();
+      let changed = 0;
+      for (let i = 0; i < before.length; i += 4) if (Math.abs(before[i + 1] - after[i + 1]) > 8) changed++;
+      const idle = { ...avatar.motion.output };
+      uiState = 'listening';
+      await new Promise(r => setTimeout(r, 2600));
+      const listening = { ...avatar.motion.output };
+      return { changedPixels: changed, idle, listening,
+        sharedParent: avatar.model.parent === avatar.presence && avatar.hairCard.parent === avatar.presence,
+        silentMouth: avatar.targets.every(m => Object.entries(m.morphTargetDictionary).every(([name, i]) =>
+          !name.startsWith('viseme_') || m.morphTargetInfluences[i] === 0)) };
+    });
+    assert(report.presence.changedPixels > 100, 'Idle movement changes pixels without a blink');
+    assert(report.presence.sharedParent && report.presence.silentMouth, 'Hair stays attached; listening does not invent speech');
+    assert(report.presence.listening.attention > .9 && report.presence.listening.roll > .013);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForFunction(() => avatar.presence.scale.x === 1 && avatar.presence.rotation.z === 0);
     await page.evaluate(() => avatar.renderer.forceContextLoss());
     await page.waitForFunction(() => document.body.dataset.visualizer === 'blob');
     await page.evaluate(() => { document.querySelector('#visualizer').value = 'mesh'; applyVisualizer(); });

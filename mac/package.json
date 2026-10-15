@@ -6,6 +6,7 @@
     "test:visualizer": "node test_visualizer.cjs",
     "test:preview": "node test_preview_only.cjs",
     "test:rig": "node test_face_rig.cjs",
+    "test:motion": "node --test ../tests/test_avatar_motion.cjs",
     "vendor:avatar": "node vendor-avatar.mjs",
     "test:lip-timeline": "node --test ../tests/test_lip_sync_timeline.cjs"
   },
