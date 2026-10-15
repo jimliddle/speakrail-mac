@@ -4,6 +4,7 @@
 // Modified by Jim Liddle, 2026-10-09: disabled search and stale-session/audio cleanup.
 const $ = (id) => document.getElementById(id);
 const CAPTURE_HZ = 16000;
+const PREVIEW_ONLY = document.body.dataset.previewOnly === "true";
 const SETTINGS = ["barge", "showlog", "visualizer"]; // Search stays disabled in this isolated prototype.
 
 let ws, micCtx, playCtx, worklet, stream, analyser, anaBuf, outGain;
@@ -52,6 +53,7 @@ $("avatar-pose").onchange = () => {
   avatarNotice(previewPose == null ? "" : "Pose preview · no microphone");
 };
 const requestedVisualizer = new URLSearchParams(location.search).get("visualizer");
+if (PREVIEW_ONLY && !requestedVisualizer) $("visualizer").value = "mesh";
 if (["blob", "mesh"].includes(requestedVisualizer)) $("visualizer").value = requestedVisualizer;
 if (!["blob", "mesh"].includes($("visualizer").value)) $("visualizer").value = "blob";
 applyVisualizer();
@@ -87,6 +89,7 @@ function stopSpeechPreview() {
     if (!running) { showBot("", false); subBot.classList.remove("show"); }
   }
   $("avatar-preview").textContent = "Preview speech"; $("avatar-preview").setAttribute("aria-pressed", "false");
+  if (PREVIEW_ONLY) { $("go").textContent = "Preview speech"; $("go").setAttribute("aria-pressed", "false"); }
   avatarNotice("");
 }
 $("avatar-preview").onclick = async () => {
@@ -95,6 +98,7 @@ $("avatar-preview").onclick = async () => {
   const preview = { context: new AudioContext({ sampleRate: 24000 }), abort: new AbortController(), timeline: new LipSyncTimeline() };
   speechPreview = preview; previewPose = null; $("avatar-pose").value = "auto";
   $("avatar-preview").textContent = "Stop preview"; $("avatar-preview").setAttribute("aria-pressed", "true");
+  if (PREVIEW_ONLY) { $("go").textContent = "Stop preview"; $("go").setAttribute("aria-pressed", "true"); }
   avatarNotice("Preparing speech preview · no microphone");
   try {
     await preview.context.resume();
@@ -315,6 +319,10 @@ function onMessage(ev) {
 const WORKLET = `class Cap extends AudioWorkletProcessor { process(inputs) { const ch = inputs[0][0]; if (ch) this.port.postMessage(new Float32Array(ch)); return true; } } registerProcessor('cap', Cap);`;
 
 async function start() {
+  if (PREVIEW_ONLY) {
+    if ($("visualizer").value !== "mesh") { $("visualizer").value = "mesh"; applyVisualizer(); }
+    return $("avatar-preview").onclick();
+  }
   stopSpeechPreview(); previewPose = null; $("avatar-pose").value = "auto";
   lipTimeline.clear(); pendingLipSync.clear(); replyPending = false;
   alignedSession = $("visualizer").value === "mesh";
@@ -406,6 +414,15 @@ function playChunk(utt, pcm) {
 }
 
 $("go").onclick = start;
+if (PREVIEW_ONLY) {
+  $("go").textContent = "Preview speech";
+  $("go").setAttribute("aria-pressed", "false");
+  setState("preview");
+  $("barge").closest(".row").hidden = true;
+  $("search").closest(".row").hidden = true;
+  $("showlog").closest(".row").hidden = true;
+  panel.querySelector(".hint").hidden = true;
+}
 $("stop").onclick = () => stop(false);
 $("interrupt").onclick = () => ws && ws.readyState === 1 && ws.send(JSON.stringify({ cmd: "interrupt" }));
 $("reconnect").onclick = () => ws && ws.readyState === 1 && ws.send(JSON.stringify({ cmd: "reconnect_asr" }));
@@ -414,7 +431,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ?demo=1: a static preview of the running state (subtitles + a search card + a moving blob), no microphone needed
-if (new URLSearchParams(location.search).get("demo") === "1") {
+if (!PREVIEW_ONLY && new URLSearchParams(location.search).get("demo") === "1") {
   if (new URLSearchParams(location.search).get("settings") === "1") panel.hidden = false;
   $("go").hidden = true; $("controls").hidden = false; setState("speaking");
   showUser("What's the weather like in Berlin right now?");

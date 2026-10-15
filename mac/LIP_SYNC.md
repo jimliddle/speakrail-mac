@@ -16,9 +16,10 @@ blend-shape rig can replace the raster renderer later.
 
 For a sample-only preview after installing the dependencies, run
 `bash mac/preview-mesh` and open `http://127.0.0.1:18182/?visualizer=mesh`.
-Use **Settings > Preview speech**, not the microphone button. This mode runs
-without conversation models; Ctrl-C stops it. The microphone path in stub
-mode is only a UI demonstration, not a real conversation.
+Click **Preview speech** below the face (also available in Settings).
+This mode runs without conversation models and does not offer microphone
+sessions; Ctrl-C stops it. The separate `--stub` mode remains available for
+testing the conversation UI.
 
 In an existing Mac installation, from the repository root:
 
@@ -85,6 +86,7 @@ cd mac
 npm install
 npx playwright install chromium
 npm run test:visualizer
+npm run test:preview
 ```
 
 The browser check starts the model-free stub server, uses a fake microphone,

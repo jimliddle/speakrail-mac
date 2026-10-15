@@ -31,6 +31,10 @@ PREVIEW_CACHE = web.AppKey("avatar_preview_cache", dict)
 
 def page(path):
     async def handler(_):
+        if path == "live/index.html" and getattr(ARGS, "preview_only", False):
+            with open(os.path.join(HERE, "web", path)) as source:
+                html = source.read().replace('<body>', '<body data-preview-only="true">')
+            return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
         return web.FileResponse(os.path.join(HERE, "web", path))
     return handler
 
@@ -65,6 +69,8 @@ def micro_cfg(q, cfg):
 
 
 async def ws_handler(request):
+    if getattr(ARGS, "preview_only", False):
+        raise web.HTTPConflict(text="This server provides sample playback only.")
     ws = web.WebSocketResponse(max_msg_size=0, heartbeat=20)
     await ws.prepare(request)
     q = request.query
@@ -203,6 +209,7 @@ def main():
     global ARGS
     ap = argparse.ArgumentParser()
     ap.add_argument("--stub", action="store_true", help="no models: fake ASR / turn head / LLM / TTS, to try the UI")
+    ap.add_argument("--preview-only", action="store_true", help="sample playback only; no microphone sessions or models")
     ap.add_argument("--port", type=int, default=env_int("UI_PORT", 8080))
     ap.add_argument("--host", default=os.environ.get("UI_HOST", "127.0.0.1"))
     ap.add_argument("--voice", default=os.environ.get("VOICE", ""), help="Breeze reference wav; its transcript sits next to it as .txt")
@@ -236,6 +243,8 @@ def main():
     ap.add_argument("--claude-mode", default="auto", help="claude -p --permission-mode")
     ap.add_argument("--claude-cwd", default="~")
     ARGS = ap.parse_args()
+    if ARGS.preview_only:
+        ARGS.stub = True
     if not ARGS.stub and not ARGS.voice:
         ap.error("--voice (or VOICE) is required unless --stub")
     app = web.Application()

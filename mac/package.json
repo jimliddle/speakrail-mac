@@ -1,6 +1,6 @@
 {
   "name": "speakrail-mac-browser-tests",
   "private": true,
-  "scripts": {"test": "node test_browser.cjs", "test:visualizer": "node test_visualizer.cjs", "test:lip-timeline": "node --test ../tests/test_lip_sync_timeline.cjs"},
+  "scripts": {"test": "node test_browser.cjs", "test:visualizer": "node test_visualizer.cjs", "test:preview": "node test_preview_only.cjs", "test:lip-timeline": "node --test ../tests/test_lip_sync_timeline.cjs"},
   "devDependencies": {"playwright": "1.56.1"}
 }
