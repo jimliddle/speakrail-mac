@@ -1,6 +1,6 @@
 /* Small state-driven motions, independent of speech timing and frame rate. */
 (() => {
-  const neutral = () => ({ x: 0, y: 0, roll: 0, scale: 1, gazeX: 0, gazeY: 0, attention: 0, thinking: 0, brow: 0 });
+  const neutral = () => ({ pitch: 0, yaw: 0, roll: 0, gazeX: 0, gazeY: 0, attention: 0, thinking: 0, brow: 0 });
   class AvatarMotion {
     constructor(random = Math.random) {
       this.random = random;
@@ -35,15 +35,14 @@
       const gazeEase = 1 - Math.exp(-dt / .25);
       this.gazeX += (this.targetX * focus - this.gazeX) * gazeEase;
       this.gazeY += ((this.targetY * focus + this.thinking * .001) - this.gazeY) * gazeEase;
-      const t = this.time, breath = Math.sin(t * 1.13), drift = Math.sin(t * .47) * .7 + Math.sin(t * .21) * .3;
+      const t = this.time, drift = Math.sin(t * .63) * .7 + Math.sin(t * .29) * .3;
       return this.output = {
-        x: .0014 * drift * (1 - this.attention * .65),
-        y: .00065 * breath + .001 * this.attention,
-        roll: .008 * drift * (1 - this.attention * .7) + .018 * this.attention - .012 * this.thinking,
-        scale: 1 + .0025 * breath + .012 * this.attention,
+        pitch: .016 * Math.sin(t * .91) * (1 - this.attention * .7) + .045 * this.attention - .015 * this.thinking,
+        yaw: .038 * drift * (1 - this.attention * .85) + .02 * this.thinking,
+        roll: .004 * Math.sin(t * .43) + .006 * this.attention,
         gazeX: this.gazeX, gazeY: this.gazeY,
         attention: this.attention, thinking: this.thinking,
-        brow: .015 * (breath + 1) + .1 * this.attention,
+        brow: .02 * (Math.sin(t * .77) + 1) + .1 * this.attention,
       };
     }
   }

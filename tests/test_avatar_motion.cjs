@@ -8,16 +8,16 @@ function advance(motion, state, start, seconds, hz = 60) {
   return value;
 }
 
-test('idle breath and gaze stay restrained; listening settles with a distinct posture', () => {
+test('head movement stays restrained; listening settles with a distinct posture', () => {
   const motion = new AvatarMotion(() => .9);
   const idle = advance(motion, 'idle', 0, 8);
   assert(Math.abs(idle.gazeX) > .001);
-  assert(Math.abs(idle.roll) < .009 && Math.abs(idle.scale - 1) < .003);
+  assert(Math.abs(idle.roll) < .005 && Math.abs(idle.yaw) < .04);
   const entry = motion.sample(8016, 'listening');
   assert(Math.abs(entry.roll - idle.roll) < .001, 'No jump on entry');
   const listening = advance(motion, 'listening', 8016, 6);
-  assert(listening.attention > .99 && listening.scale > 1.009);
-  assert(listening.roll > .015 && Math.abs(listening.gazeX) < .0003);
+  assert(listening.attention > .99 && listening.pitch > .035);
+  assert(Math.abs(listening.yaw) < .006 && Math.abs(listening.gazeX) < .0003);
   const exit = motion.sample(14048, 'idle');
   assert(Math.abs(exit.roll - listening.roll) < .001, 'No jump on exit');
 });
@@ -34,6 +34,6 @@ test('reduced motion and static pose previews reset all decorative movement', ()
   const motion = new AvatarMotion(() => .9);
   advance(motion, 'listening', 0, 8);
   const still = motion.sample(8100, 'listening', false);
-  assert.deepEqual(still, { x: 0, y: 0, roll: 0, scale: 1, gazeX: 0, gazeY: 0, attention: 0, thinking: 0, brow: 0 });
+  assert.deepEqual(still, { pitch: 0, yaw: 0, roll: 0, gazeX: 0, gazeY: 0, attention: 0, thinking: 0, brow: 0 });
   assert.deepEqual(motion.sample(9000, 'idle', false), still);
 });

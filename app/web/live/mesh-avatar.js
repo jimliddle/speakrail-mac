@@ -113,19 +113,18 @@
       }
       this.head = this.model.getObjectByName("Head");
       this.headRest = this.head?.quaternion.clone();
+      this.neck = this.model.getObjectByName("Neck");
+      this.neckRest = this.neck?.quaternion.clone();
       if (!this.targets.some(mesh => mesh.morphTargetDictionary?.viseme_aa !== undefined)) {
         throw new Error("Face asset has no speech shapes");
       }
       this.model.updateMatrixWorld(true);
       await this.preparePortrait(meshes, clippingPlanes);
-      // Move the entire composition about the neck, including the hair card.
-      // A frontal roll/translation preserves projection; independent head turns do not.
-      this.presence = new THREE.Group();
-      this.presence.position.y = 1.45;
-      this.scene.add(this.presence);
+      // The hair follows the skull, while neck skin deforms through the rig.
+      // Do not transform the whole bust: the shoulders are the stationary reference.
       this.scene.updateMatrixWorld(true);
-      this.presence.attach(this.model);
-      this.presence.attach(this.hairCard);
+      if (!this.head || !this.neck) throw new Error("Face asset has no head/neck bones");
+      this.head.attach(this.hairCard);
       this.setAppearance(this.appearance);
     }
 
@@ -197,7 +196,8 @@
             vec2 p=(portraitUV-vec2(.5,.49))/vec2(.235,.32);
             float hole=smoothstep(.88,1.03,length(p));
             float ink=smoothstep(.005,.035,max(color.r,max(color.g,color.b)));
-            gl_FragColor=vec4(color.rgb,hole*ink);
+            // The card supplies hair, not a second neck/shoulder silhouette.
+            gl_FragColor=vec4(color.rgb,hole*ink*smoothstep(.23,.30,portraitUV.y));
             #include <tonemapping_fragment>
             #include <colorspace_fragment>
           }`,
@@ -232,8 +232,8 @@
       if (!this.ready) return false;
       this.resetMouth();
       const speaking = state === "speaking" && mouthWeights && previewPose == null;
-      const statePreview = previewPose === 16 || previewPose === 17;
-      const motionState = previewPose === 16 ? "listening" : previewPose === 17 ? "thinking" : state;
+      const statePreview = previewPose === 0 || previewPose === 16 || previewPose === 17;
+      const motionState = previewPose === 0 ? "idle" : previewPose === 16 ? "listening" : previewPose === 17 ? "thinking" : state;
       const moving = !this.reducedMotion.matches && (previewPose == null || statePreview);
       const motion = this.motion.sample(t, motionState, moving);
       this.pose = previewPose ?? (speaking ? mouthWeights.indexOf(Math.max(...mouthWeights)) : STATE_POSE[state] ?? 0);
@@ -269,15 +269,16 @@
       this.setShape("eyeBlinkLeft", blink); this.setShape("eyeBlinkRight", blink);
       if (this.portraitBlink) this.portraitBlink.value = blink;
       if (this.portraitGaze) this.portraitGaze.value.set(motion.gazeX, motion.gazeY);
-      this.presence.position.set(motion.x, 1.45 + motion.y, 0);
-      this.presence.rotation.z = motion.roll;
-      this.presence.scale.setScalar(motion.scale);
+      if (this.neck) {
+        this.neck.quaternion.copy(this.neckRest);
+        this.neck.rotateX(motion.pitch * .25);
+        this.neck.rotateY(motion.yaw * .2);
+      }
       if (this.head) {
         this.head.quaternion.copy(this.headRest);
-        if (moving && this.appearance !== "portrait") {
-          this.head.rotateY(Math.sin(this.motion.time * .36) * .012 * (1 - motion.attention * .8));
-          this.head.rotateX(Math.sin(this.motion.time * .53) * .006);
-        }
+        this.head.rotateX(motion.pitch * .75);
+        this.head.rotateY(motion.yaw * .8);
+        this.head.rotateZ(motion.roll);
       }
       const height = Math.max(80, Math.min(700, h - 185));
       const width = Math.min(w, 900);
@@ -318,7 +319,6 @@
       this.targets = [];
       this.portraitParts = [];
       this.portraitTexture = this.hairCard = null;
-      this.presence = null;
       this.renderWidth = this.renderHeight = null;
     }
   }

@@ -160,31 +160,54 @@ const net = require('node:net');
     });
     assert(report.motion.changedPixels > 100, 'Portrait blink changes rendered pixels');
     report.presence = await page.evaluate(async () => {
-      previewPose = null; uiState = 'idle';
+      previewPose = 0; uiState = 'idle';
       avatar.nextBlink = performance.now() + 60000; avatar.blinkAt = null;
       const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       await frame();
       const canvas = document.querySelector('#blob');
       const pixels = () => canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      const body = avatar.targets.find(m => m.name === 'Human');
+      const positions = body.geometry.attributes.position;
+      const v = new avatar.THREE.Vector3();
+      const samples = [];
+      for (let i = 0; i < positions.count; i++) {
+        const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+        const region = y > 1.44 && y < 1.46 && Math.abs(x) > .085 && z > 0 ? 'shoulder'
+          : y > 1.63 && y < 1.70 && Math.abs(x) < .05 && z > .1 ? 'head' : null;
+        if (region) samples.push({ i, region, before: body.localToWorld(body.getVertexPosition(i, v)).clone() });
+      }
       const before = pixels();
       await new Promise(r => setTimeout(r, 1300));
       const after = pixels();
       let changed = 0;
       for (let i = 0; i < before.length; i += 4) if (Math.abs(before[i + 1] - after[i + 1]) > 8) changed++;
       const idle = { ...avatar.motion.output };
+      const displacement = { head: [], shoulder: [] };
+      for (const sample of samples) displacement[sample.region].push(
+        body.localToWorld(body.getVertexPosition(sample.i, v)).distanceTo(sample.before));
+      const geometryMotion = Object.fromEntries(Object.entries(displacement).map(([name, values]) =>
+        [name, { count: values.length, max: Math.max(...values), mean: values.reduce((a, b) => a + b, 0) / values.length }]));
+      previewPose = null;
       uiState = 'listening';
       await new Promise(r => setTimeout(r, 2600));
       const listening = { ...avatar.motion.output };
-      return { changedPixels: changed, idle, listening,
-        sharedParent: avatar.model.parent === avatar.presence && avatar.hairCard.parent === avatar.presence,
+      return { changedPixels: changed, idle, listening, geometryMotion,
+        hairFollowsHead: avatar.hairCard.parent === avatar.head,
+        fixedBust: avatar.model.position.length() === 0 && avatar.model.scale.equals(new avatar.THREE.Vector3(1, 1, 1)),
         silentMouth: avatar.targets.every(m => Object.entries(m.morphTargetDictionary).every(([name, i]) =>
           !name.startsWith('viseme_') || m.morphTargetInfluences[i] === 0)) };
     });
     assert(report.presence.changedPixels > 100, 'Idle movement changes pixels without a blink');
-    assert(report.presence.sharedParent && report.presence.silentMouth, 'Hair stays attached; listening does not invent speech');
-    assert(report.presence.listening.attention > .9 && report.presence.listening.roll > .013);
+    assert(report.presence.hairFollowsHead && report.presence.fixedBust && report.presence.silentMouth);
+    assert(report.presence.geometryMotion.head.count > 10 && report.presence.geometryMotion.head.max > .001, 'Rest animates the head geometry');
+    // The stock neck weights slightly affect the collar. Allow under a third
+    // of a pixel at our largest render size, but not a whole-bust movement.
+    assert(report.presence.geometryMotion.shoulder.count >= 6 && report.presence.geometryMotion.shoulder.max < .0002
+      && report.presence.geometryMotion.head.max > report.presence.geometryMotion.shoulder.max * 10,
+      'Shoulder motion stays subpixel while the head moves independently');
+    assert(report.presence.listening.attention > .9 && report.presence.listening.pitch > .035);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(() => avatar.presence.scale.x === 1 && avatar.presence.rotation.z === 0);
+    await page.waitForFunction(() => avatar.head.quaternion.equals(avatar.headRest) && avatar.neck.quaternion.equals(avatar.neckRest));
     await page.evaluate(() => avatar.renderer.forceContextLoss());
     await page.waitForFunction(() => document.body.dataset.visualizer === 'blob');
     await page.evaluate(() => { document.querySelector('#visualizer').value = 'mesh'; applyVisualizer(); });

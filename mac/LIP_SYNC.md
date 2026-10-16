@@ -22,7 +22,7 @@ blinks. Teeth and tongue retain their own geometry and subdued materials.
 The original PNG is unchanged, and Settings still links to it for comparison.
 
 This is a front-facing texture treatment, not a reconstructed 3D likeness.
-Portrait disables head turning to keep the hair and face aligned. Large
+Portrait permits only small head turns; its hair is still a flat projection. Large
 expressions can stretch the texture; blink detail is approximate. Plain rig
 restores the previous materials, hair mesh, wire overlay and subtle idle head
 movement. A fully turnable version of the woman still needs a custom model.
@@ -33,21 +33,23 @@ speech preview waits for it to load before scheduling audio.
 
 ## Idle and listening movement
 
-The face now has small breathing-scale changes, slow posture drift, occasional
-gaze shifts and blinks while idle. Listening eases into a slight tilt and lean,
-with less drift, a steadier gaze and a small brow lift. Thinking has a different
-tilt. Transitions take roughly a second to settle instead of snapping between
+The face now makes small head turns and pitch adjustments, with occasional
+gaze shifts and blinks while idle. Listening eases into a slight forward head
+inclination, with less turning, a steadier gaze and a small brow lift. Thinking
+has a different head orientation. Transitions ease instead of snapping between
 poses. These are UI-state cues, not inferred emotions or semantic nods.
 
-The head and hair card share one transform anchored near the neck. Portrait
-uses only frontal tilt, scale and translation, not side-to-side head rotation.
-Its gaze movement is a small, masked texture offset around the irises. The
-phoneme-driven lips remain independent of this motion.
+The head and neck bones drive the motion. The hair card is attached to the
+head bone; the bust is not translated, rotated or scaled. The rig deforms the
+neck between the moving head and nearly stationary shoulders. This replaces
+the first motion attempt, which moved the whole composition and looked like
+a rotating picture. Gaze uses a small masked texture offset around the irises.
+The phoneme-driven lips remain independent of this motion.
 
 To compare without a microphone, use **Settings → Preview pose → Listening**
-or **Thinking**, then return to **Automatic** for idle. Other manual poses
-remain still for inspection. Reduced-motion preferences disable breathing,
-drift, automatic gaze shifts and automatic blinks. Fixed expression previews
+or **Thinking**, then return to **Automatic** or **Rest** for idle. Other manual
+poses remain still for inspection. Reduced-motion preferences disable head
+movement, automatic gaze shifts and automatic blinks. Fixed expression previews
 and speech articulation remain available.
 
 ## Install and try
@@ -149,8 +151,10 @@ separate from the CC0 avatar.
 Motion unit tests cover bounded movement, eased entry/exit, frame-rate
 independence, resuming after a background pause and reduced-motion reset.
 Browser checks also compare idle pixels with blinking disabled, verify the
-listening state and shared hair/face transform, and check that listening does
-not activate speech shapes.
+listening state and skull-attached hair, and check that listening does not
+activate speech shapes. Geometry checks require the head to move independently
+of the bust, allowing only subpixel collar deformation from the stock skin
+weights. Pixel changes alone do not establish natural motion.
 
 To refresh the vendored runtime after installing the pinned dev dependencies,
 run `npm run vendor:avatar` from `mac`. Sources, hashes and licences are in
