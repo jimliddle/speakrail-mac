@@ -29,6 +29,8 @@ body{background:var(--color-bg);color:var(--color-fg);font-family:var(--font-san
   transition:background .12s,border-color .12s}
 .chip:hover{background:var(--color-surface-3);border-color:var(--color-border-strong)}
 .chip:disabled{opacity:.4;cursor:default}
+.chip[hidden]{display:none}
+a.chip{text-decoration:none}
 .pill{font-size:12px;font-weight:var(--weight-medium);border-radius:var(--radius-full);padding:5px 11px;border:1px solid var(--color-border);color:var(--color-fg-muted);
   background:var(--color-surface-1);text-transform:lowercase}
 .pill.listening{color:var(--brand-sage);border-color:#a3d9b855}

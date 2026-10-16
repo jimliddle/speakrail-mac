@@ -82,6 +82,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
 
     def queue(self, number=0):
         seg = SimpleNamespace(utt=1, seg=number, text="Hello")
+        self.last_segment = seg
         self.session.on_tts_audio(seg, b"\x00\x00" * 240)
         self.session.on_tts_done(seg)
         return self.session.alignment_tasks[(1, number)]
@@ -149,6 +150,28 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.session.events[0]["method"], "unavailable")
         self.assertEqual(self.session.events[0]["cues"], [])
         self.assertIsInstance(self.session.events[1], tuple)
+
+    async def test_pacing_precedes_alignment_and_updates_sample_count(self):
+        from unittest.mock import AsyncMock
+        self.session.speech_pace = .85
+        paced = b"\x01\x00" * 300
+        align = AsyncMock(return_value={"cues": [], "method": "forced-phoneme"})
+        self.session.alignment_service.align = align
+        with patch.object(adapter, "pace_pcm", AsyncMock(return_value=paced)) as pace:
+            await self.queue()
+        pace.assert_awaited_once_with(b"\x00\x00" * 240, .85)
+        align.assert_awaited_once_with(paced, "Hello")
+        self.assertEqual(self.session.events[0]["samples"], 300)
+        self.assertEqual(self.last_segment.samples, 300)
+        self.assertEqual(self.session.events[1][1], paced)
+
+    async def test_pacing_failure_keeps_original_audio(self):
+        from unittest.mock import AsyncMock
+        self.gate.set()
+        with patch.object(adapter, "pace_pcm", AsyncMock(side_effect=RuntimeError("test"))):
+            await self.queue()
+        self.assertEqual(self.session.events[0], {"type": "speech_pace_status", "available": False})
+        self.assertEqual(self.session.events[2][1], b"\x00\x00" * 240)
 
     async def test_cancelling_a_queued_reply_preserves_prior_interjection(self):
         first = self.queue()

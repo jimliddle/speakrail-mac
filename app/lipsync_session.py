@@ -3,12 +3,14 @@ import asyncio
 import math
 import time
 from session import MicroSession
+from speech_pacing import pace_pcm
 
 
 class LipSyncSession(MicroSession):
-    def __init__(self, *args, alignment_service, **kwargs):
+    def __init__(self, *args, alignment_service, speech_pace=1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self.alignment_service = alignment_service
+        self.speech_pace = speech_pace
         self.alignment_audio = {}
         self.alignment_tasks = {}
         self.alignment_events = {}
@@ -36,6 +38,11 @@ class LipSyncSession(MicroSession):
                 if previous is not None:
                     await asyncio.shield(asyncio.gather(previous, return_exceptions=True))
                 pcm = bytes(self.alignment_audio[key])
+                try:
+                    pcm = await pace_pcm(pcm, self.speech_pace)
+                except Exception:
+                    self.send({"type": "speech_pace_status", "available": False})
+                seg.samples = len(pcm) // 2
                 try:
                     result = await self.alignment_service.align(pcm, seg.text)
                 except Exception as error:

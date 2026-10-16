@@ -3,4 +3,4 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo 'Face preview: http://127.0.0.1:18182/?visualizer=mesh'
 echo 'Use Settings > Preview speech. This mode does not load the conversation models.'
-exec "$ROOT/.venv/bin/python" "$ROOT/mac_ui.py" --preview-only --host 127.0.0.1 --port 18182 "$@"
+exec "$ROOT/.venv/bin/python" "$ROOT/mac_ui.py" --preview-only --conversation-url 'http://127.0.0.1:18183/?visualizer=mesh' --host 127.0.0.1 --port 18182 "$@"

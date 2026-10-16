@@ -25,6 +25,7 @@
       <div id="avatar-preview-controls" hidden>
         <div class="row"><label for="avatar-appearance">Appearance</label><select id="avatar-appearance"><option value="portrait">Portrait</option><option value="rig">Plain rig</option></select></div>
         <div class="row"><label for="avatar-pose">Preview pose</label><select id="avatar-pose"><option value="auto">Automatic</option></select></div>
+        <div class="row"><label for="speech-pace">Speech pace</label><select id="speech-pace"><option value="0.75">Slow</option><option value="0.85" selected>Relaxed</option><option value="1">Original</option></select></div>
         <div class="row"><button id="avatar-preview" class="chip" aria-pressed="false">Preview speech</button></div>
         <div class="row"><a href="static/assets/mesh-face/portrait-reference.png" target="_blank" rel="noopener">Original portrait</a></div>
       </div>
@@ -38,6 +39,7 @@
   </div>
   <div class="brand">Speakrail <span class="dot"></span></div>
   <div class="status">
+    <a id="conversation-link" class="chip" hidden>Talk to Astra</a>
     <div id="controls" class="controls" hidden>
       <button id="interrupt" class="chip">Interrupt</button>
       <button id="reconnect" class="chip" title="open a fresh Voxtral session if words stop coming">Reconnect ASR</button>
@@ -65,6 +67,6 @@
 <script src="static/avatar-motion.js?v=listening-neutral-20261016"></script>
 <script src="static/mesh-avatar.js?v=hair-depth-20261016"></script>
 <script src="static/lip-sync-timeline.js"></script>
-<script src="static/live.js"></script>
+<script src="static/live.js?v=astra-pace-20261016"></script>
 </body>
 </html>

@@ -30,7 +30,17 @@ const path = require('node:path');
       if (['word', 'error', 'reply_start', 'reply_end', 'stop_audio', 'decision'].includes(event.type)) console.log(JSON.stringify(event));
     }));
     await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
-    await page.goto(url);
+    if (process.argv[3]) {
+      await page.goto(process.argv[3]);
+      await page.locator('#conversation-link').click();
+      await page.waitForURL(url);
+      report.previewToConversation = true;
+    } else {
+      await page.goto(url);
+    }
+    assert(await page.locator('#go').isVisible());
+    assert.equal(await page.locator('#go').textContent(), 'Allow microphone & start');
+    assert.equal(await page.locator('#speech-pace').inputValue(), '0.85');
     await page.waitForFunction(() => avatar.ready);
     await page.evaluate(() => {
       window.astraEvents = [];
@@ -42,6 +52,7 @@ const path = require('node:path');
     });
     await page.locator('#go').click();
     await page.waitForFunction(() => running && worklet != null);
+    assert(await page.locator('#speech-pace').isDisabled());
     await page.evaluate(() => { worklet.port.onmessage = null; });
     await page.waitForFunction(() => window.astraEvents.some(e => e.type === 'brain'), null, { timeout: 60000 });
     const system = await page.evaluate(() => window.astraEvents.find(e => e.type === 'brain').system);
@@ -86,6 +97,7 @@ const path = require('node:path');
       assert.match(reply, item.expected);
       assert(cues > 0 && mouthMoved, 'Real spoken reply has aligned and visible mouth movement');
       assert(!events.some(e => e.type === 'error'), JSON.stringify(events.filter(e => e.type === 'error')));
+      assert(!events.some(e => e.type === 'speech_pace_status' && !e.available), 'Requested pacing was applied without fallback');
       await page.screenshot({ path: path.join(root, `astra-turn-${index}.png`) });
     }
     await page.setViewportSize({ width: 390, height: 844 });

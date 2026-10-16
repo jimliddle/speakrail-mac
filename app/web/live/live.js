@@ -5,7 +5,11 @@
 const $ = (id) => document.getElementById(id);
 const CAPTURE_HZ = 16000;
 const PREVIEW_ONLY = document.body.dataset.previewOnly === "true";
-const SETTINGS = ["barge", "showlog", "visualizer"]; // Search stays disabled in this isolated prototype.
+const SETTINGS = ["barge", "showlog", "visualizer", "speech-pace"]; // Search stays disabled in this isolated prototype.
+if (PREVIEW_ONLY && document.body.dataset.conversationUrl) {
+  $("conversation-link").href = document.body.dataset.conversationUrl;
+  $("conversation-link").hidden = false;
+}
 
 let ws, micCtx, playCtx, worklet, stream, analyser, anaBuf, outGain;
 let sources = [], playCursor = 0, uttStart = 0, uttId = 0;
@@ -26,6 +30,7 @@ for (const id of SETTINGS) {
   el.onchange = () => { localStorage.setItem("speakrail." + id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); if (id === "showlog") $("log").hidden = !el.checked; if (id === "visualizer") applyVisualizer(); };
 }
 $("log").hidden = !$("showlog").checked;
+if (!["0.75", "0.85", "1"].includes($("speech-pace").value)) $("speech-pace").value = "0.85";
 function lockSettings(lock) {
   for (const id of SETTINGS) if (!["showlog", "visualizer"].includes(id)) $(id).disabled = lock;
   $("avatar-preview").disabled = lock; $("avatar-pose").disabled = lock;
@@ -111,7 +116,9 @@ $("avatar-preview").onclick = async () => {
     await preview.context.resume();
     if (!await avatar.load()) throw new Error("The face could not be loaded. Select Orb to use the original visualization.");
     if (speechPreview !== preview) return;
-    const response = await fetch(new URL("avatar-preview", location.href), { signal: preview.abort.signal });
+    const previewURL = new URL("avatar-preview", location.href);
+    previewURL.searchParams.set("pace", $("speech-pace").value);
+    const response = await fetch(previewURL, { signal: preview.abort.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Preview unavailable");
     if (speechPreview !== preview) return;
@@ -306,6 +313,7 @@ function onMessage(ev) {
       break;
     }
     case "head": lvl.head = m.p[0]; break;
+    case "speech_pace_status": avatarNotice("Speech pacing unavailable; using the original pace."); break;
     case "word": showUser(userRaw + m.raw); break;
     case "endpoint": showUser(m.text); break;
     case "backchannel": showUser(""); break;
@@ -346,7 +354,7 @@ async function start() {
   micCtx = new AudioContext({ sampleRate: CAPTURE_HZ });
   await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" })));
 
-  const qs = `?barge=${$("barge").value}&search=${$("search").value}` + (alignedSession ? "&lipsync=phoneme" : "");
+  const qs = `?barge=${$("barge").value}&search=${$("search").value}` + (alignedSession ? "&lipsync=phoneme&pace=" + $("speech-pace").value : "");
   const ck = new URLSearchParams(location.search).get("ck");     // the claude_code access key, if the page has one
   const wsUrl = new URL("ws" + qs + (ck ? "&ck=" + encodeURIComponent(ck) : ""), location.href); wsUrl.protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(wsUrl); ws.binaryType = "arraybuffer";

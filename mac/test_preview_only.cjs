@@ -12,7 +12,7 @@ const path = require('node:path');
   const port = portProbe.address().port;
   await new Promise(resolve => portProbe.close(resolve));
   const server = spawn(path.join(__dirname, '.venv/bin/python'),
-    [path.join(__dirname, 'mac_ui.py'), '--preview-only', '--port', String(port)], { stdio: 'ignore' });
+    [path.join(__dirname, 'mac_ui.py'), '--preview-only', '--conversation-url', 'http://127.0.0.1:18183/?visualizer=mesh', '--port', String(port)], { stdio: 'ignore' });
   const closed = once(server, 'close');
   const url = `http://127.0.0.1:${port}/`;
   let browser;
@@ -41,9 +41,19 @@ const path = require('node:path');
     for (const route of ['', 'live/']) {
       await page.goto(url + route);
       assert.equal(await page.locator('#go').textContent(), 'Preview speech');
+      assert(await page.locator('#conversation-link').isVisible());
+      assert.equal(await page.locator('#conversation-link').getAttribute('href'), 'http://127.0.0.1:18183/?visualizer=mesh');
+      const original = await (await page.request.get(url + route + 'avatar-preview?pace=1')).json();
+      const relaxed = await (await page.request.get(url + route + 'avatar-preview?pace=0.85')).json();
+      assert(relaxed.duration > original.duration * 1.1, 'Relaxed pace actually slows the PCM');
+      assert.equal(relaxed.method, 'forced-phoneme');
+      assert(Math.abs(Buffer.from(relaxed.pcm, 'base64').length / 48000 - relaxed.duration) < .001);
+      assert(relaxed.cues.some(c => c.pose === 0 && c.start > .3 && c.end - c.start > .2), 'Greeting has a closed-mouth pause between phrases');
+      assert.equal((await page.request.get(url + route + 'avatar-preview?pace=0')).status(), 400);
       await page.locator('#go').click();
       await page.waitForFunction(() => speechPreview?.start != null);
-      assert.equal(await page.locator('#bot').textContent(), "Hi, I'm Astra, how is your day going today?");
+      assert(await page.evaluate(() => speechPreview.end - speechPreview.start > 3));
+      assert.equal(await page.locator('#bot').textContent(), "Hi, I'm Astra. How is your day going today?");
       assert.equal(await page.locator('#go').textContent(), 'Stop preview');
       assert(await page.evaluate(() => !running && !stream && micRequests === 0));
       assert.equal((await page.request.get(url + route + 'ws')).status(), 409);
@@ -62,6 +72,9 @@ const path = require('node:path');
     for (const [width, height] of [[1440, 900], [390, 844]]) {
       await page.setViewportSize({ width, height });
       await page.waitForTimeout(200);
+      assert(await page.locator('#conversation-link').evaluate(link => {
+        const r = link.getBoundingClientRect(); return r.x >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      }));
       await page.screenshot({ path: path.join(__dirname, `preview-only-${width}.png`) });
     }
     assert.equal(sockets, 0);

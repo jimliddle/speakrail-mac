@@ -18,6 +18,7 @@ import json
 import os
 import time
 import wave
+from html import escape
 
 from aiohttp import web, WSMsgType
 
@@ -33,7 +34,8 @@ def page(path):
     async def handler(_):
         if path == "live/index.html" and getattr(ARGS, "preview_only", False):
             with open(os.path.join(HERE, "web", path)) as source:
-                html = source.read().replace('<body>', '<body data-preview-only="true">')
+                conversation = escape(getattr(ARGS, "conversation_url", ""), quote=True)
+                html = source.read().replace('<body>', f'<body data-preview-only="true" data-conversation-url="{conversation}">')
             return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "no-store"})
         return web.FileResponse(os.path.join(HERE, "web", path))
     return handler
@@ -71,6 +73,7 @@ def micro_cfg(q, cfg):
 async def ws_handler(request):
     if getattr(ARGS, "preview_only", False):
         raise web.HTTPConflict(text="This server provides sample playback only.")
+    pace = request_pace(request)
     ws = web.WebSocketResponse(max_msg_size=0, heartbeat=20)
     await ws.prepare(request)
     q = request.query
@@ -108,7 +111,7 @@ async def ws_handler(request):
         if q.get("lipsync") == "phoneme" and alignment_service() is not None:
             from lipsync_session import LipSyncSession
             mcfg.phrase_cache = False
-            sess = LipSyncSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg, alignment_service=ALIGNMENT)
+            sess = LipSyncSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg, alignment_service=ALIGNMENT, speech_pace=pace)
             send({"type": "lip_sync_status", "available": True})
         else:
             sess = MicroSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg)
@@ -176,24 +179,35 @@ def alignment_service():
     return ALIGNMENT
 
 
+def request_pace(request):
+    from speech_pacing import speech_pace
+    try:
+        return speech_pace(request.query.get("pace", "0.85"))
+    except ValueError as error:
+        raise web.HTTPBadRequest(text=str(error))
+
+
 async def avatar_preview(request):
     """Audible, phoneme-timed preview using the locally rendered Astra greeting."""
     service = alignment_service()
     if service is None:
         return web.json_response({"error": "Install the optional lip-sync package; see mac/LIP_SYNC.md."}, status=503)
     cache = request.app[PREVIEW_CACHE]
-    if "data" not in cache:
+    pace = request_pace(request)
+    if pace not in cache:
         with wave.open(os.path.join(HERE, "voices", "astra_intro.wav")) as sample:
             pcm = sample.readframes(sample.getnframes())
         with open(os.path.join(HERE, "voices", "astra_intro.txt")) as transcript:
             text = transcript.read().strip()
         try:
+            from speech_pacing import pace_pcm
+            pcm = await pace_pcm(pcm, pace)
             result = await service.align(pcm, text)
         except Exception:
             return web.json_response({"error": "The local preview alignment failed. See the server log."}, status=503)
-        cache["data"] = {"text": text, "sample_rate": 24000,
+        cache[pace] = {"text": text, "sample_rate": 24000, "pace": pace,
                          "pcm": base64.b64encode(pcm).decode("ascii"), **result}
-    return web.json_response(cache["data"])
+    return web.json_response(cache[pace])
 
 
 async def on_cleanup(app):
@@ -210,6 +224,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stub", action="store_true", help="no models: fake ASR / turn head / LLM / TTS, to try the UI")
     ap.add_argument("--preview-only", action="store_true", help="sample playback only; no microphone sessions or models")
+    ap.add_argument("--conversation-url", default="", help="optional link from the preview to a separately running conversation trial")
     ap.add_argument("--port", type=int, default=env_int("UI_PORT", 8080))
     ap.add_argument("--host", default=os.environ.get("UI_HOST", "127.0.0.1"))
     ap.add_argument("--voice", default=os.environ.get("VOICE", ""), help="Breeze reference wav; its transcript sits next to it as .txt")

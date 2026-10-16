@@ -72,10 +72,20 @@ microphone. Ctrl-C in the launch terminal unloads this trial's model services.
 Closing a tab or pressing Stop does not unload the models.
 
 The conversation prompt names the assistant Astra. **Settings > Preview speech**
-plays "Hi, I'm Astra, how is your day going today?" before starting a session.
+plays "Hi, I'm Astra. How is your day going today?" before starting a session.
 The greeting is a separate locally generated sample; the original synthetic
 voice reference is unchanged. It does not automatically play on connection.
 Use `mac/.venv/bin/python mac/render_astra_intro.py` to regenerate it.
+
+**Settings > Speech pace** offers Relaxed (the default, 0.85), Slow (0.75)
+and Original (1.0). It applies to the next preview or new face session and is
+locked during conversation. Audio is time-stretched locally with FFmpeg's
+pitch-preserving `atempo` filter, then aligned; lip cues are never reused from
+the faster audio. The original-rate WAV is rendered in two phrases with a
+350 ms pause. Playback sample counts and end timers use the paced audio.
+If live pacing fails, speech uses its original pace and reports the fallback.
+FFmpeg must be on the server's PATH. These settings apply to the rigged face;
+the original orb's streaming speech path is unchanged.
 
 This launcher disables web search, local tools, hosted agents, session recordings
 and optional listening notes (unsupported by the local completions adapter).
@@ -91,7 +101,10 @@ For a sample-only preview after installing the dependencies, run
 `bash mac/preview-mesh` and open `http://127.0.0.1:18182/?visualizer=mesh`.
 Click **Preview speech** below the face (also available in Settings).
 This mode runs without conversation models and does not offer microphone
-sessions; Ctrl-C stops it. The separate `--stub` mode remains available for
+sessions; Ctrl-C stops it. **Talk to Astra** opens the separate conversation
+page, where **Allow microphone & start** is visible. That link does not start
+models; run the Astra launcher first. Custom preview launches can set the link
+with `--conversation-url`. The separate `--stub` mode remains available for
 testing the conversation UI.
 
 In an existing Mac installation, from the repository root:
