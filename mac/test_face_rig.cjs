@@ -103,6 +103,73 @@ const net = require('node:net');
       assert(view.faceBottom + 5 < view.buttonTop, 'Face does not overlap primary control');
       report.views.push({ width, height, ...view });
       await page.screenshot({ path: path.join(__dirname, `rig-${width}.png`) });
+      if (height > 500) {
+        const hair = await page.evaluate(({ width, height }) => {
+          const a = avatar, V = a.THREE.Vector3;
+          const body = a.targets.find(m => m.name === 'Human');
+          const nearest = (mesh, hair) => {
+            const p = mesh.geometry.attributes.position;
+            let best = Infinity, index = 0;
+            for (let i = 0; i < p.count; i++) {
+              const y = p.getY(i) + (hair ? 1.63 : 0);
+              if (p.getZ(i) < .1) continue;
+              const distance = p.getX(i) ** 2 + (y - 1.72) ** 2;
+              if (distance < best) { best = distance; index = i; }
+            }
+            return index;
+          };
+          const faceIndex = nearest(body, false), hairIndex = nearest(a.hairCard, true);
+          const point = (mesh, i) => mesh.localToWorld(mesh.getVertexPosition(i, new V()));
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          const strip = document.createElement('canvas');
+          strip.width = width * 3; strip.height = height;
+          const sample = a.motion.sample;
+          const poses = [{ yaw: 0, pitch: 0 }, { yaw: .03, pitch: 0 }, { yaw: 0, pitch: .016 }];
+          let baseline;
+          const checks = [];
+          try {
+            for (const [index, pose] of poses.entries()) {
+              a.motion.sample = () => ({ ...pose, roll: 0, gazeX: 0, gazeY: 0, attention: 0, thinking: 0, brow: 0 });
+              ctx.clearRect(0, 0, width, height);
+              a.draw(ctx, 0, width, height, { previewPose: 0 });
+              const face = point(body, faceIndex), hair = point(a.hairCard, hairIndex);
+              const pixels = ctx.getImageData(0, 0, width, height).data;
+              strip.getContext('2d').drawImage(canvas, width * index, 0);
+              if (!baseline) { baseline = { face, hair, pixels }; continue; }
+              const faceDelta = face.sub(baseline.face), hairDelta = hair.sub(baseline.hair);
+              faceDelta.z = 0; hairDelta.z = 0;
+              const top = new V(-.14, 1.79, .1).project(a.camera);
+              const bottom = new V(.14, 1.74, .1).project(a.camera);
+              let changedCrownPixels = 0;
+              const bounds = a.bounds;
+              const x0 = Math.floor(bounds.x + (top.x + 1) * bounds.width / 2);
+              const x1 = Math.ceil(bounds.x + (bottom.x + 1) * bounds.width / 2);
+              const y0 = Math.floor(bounds.y + (1 - top.y) * bounds.height / 2);
+              const y1 = Math.ceil(bounds.y + (1 - bottom.y) * bounds.height / 2);
+              for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+                const i = (y * width + x) * 4 + 1;
+                if (Math.abs(pixels[i] - baseline.pixels[i]) > 8) changedCrownPixels++;
+              }
+              checks.push({ pose, faceMotion: faceDelta.length(), hairMotion: hairDelta.length(),
+                sameDirection: faceDelta.dot(hairDelta) > 0,
+                slip: faceDelta.distanceTo(hairDelta), changedCrownPixels });
+            }
+          } finally { a.motion.sample = sample; }
+          return { checks, image: strip.toDataURL('image/png') };
+        }, { width, height });
+        report.views.at(-1).hairMotion = hair.checks;
+        for (const check of hair.checks) {
+          assert(check.sameDirection && check.faceMotion > .001 && check.hairMotion > .001,
+            'Hairline and forehead move in the same direction, not on opposite sides of the pivot');
+          assert(check.slip < .0005, 'Hairline stays registered to the forehead during yaw and pitch');
+          assert(check.changedCrownPixels > 50, 'The visible crown moves, not only the face');
+        }
+        fs.mkdirSync(path.join(__dirname, 'test-tmp'), { recursive: true });
+        fs.writeFileSync(path.join(__dirname, 'test-tmp', `hair-motion-${width}.png`),
+          Buffer.from(hair.image.split(',')[1], 'base64'));
+      }
       await page.locator('#go').click();
       await page.waitForFunction(() => speechPreview?.start != null);
       await page.waitForTimeout(800);

@@ -184,7 +184,7 @@
         }
         this.portraitParts.push(part);
       }
-      // A masked card retains the portrait's hair silhouette. The opaque centre
+      // A masked shell retains the portrait's hair silhouette. The opaque centre
       // is removed so open lips and eyes cannot reveal a second, static face.
       const material = new THREE.ShaderMaterial({
         uniforms: { portrait: { value: texture } }, transparent: true, depthWrite: false,
@@ -203,8 +203,18 @@
           }`,
       });
       this.portraitTexture = texture;
-      this.hairCard = new THREE.Mesh(new THREE.PlaneGeometry(.32, .36), material);
-      this.hairCard.position.set(0, 1.63, -.07);
+      const hairGeometry = new THREE.PlaneGeometry(.32, .36, 40, 48);
+      const hairPositions = hairGeometry.attributes.position;
+      // Match the frontal scalp depth. A flat layer behind the skull moves
+      // opposite the face in yaw, even when both follow the same head bone.
+      for (let i = 0; i < hairPositions.count; i++) {
+        const x = hairPositions.getX(i), y = hairPositions.getY(i) + 1.63;
+        const radius = (x / .165) ** 2 + ((y - 1.68) / .17) ** 2;
+        hairPositions.setZ(i, .02 + .135 * Math.sqrt(Math.max(0, 1 - radius)));
+      }
+      hairGeometry.computeVertexNormals();
+      this.hairCard = new THREE.Mesh(hairGeometry, material);
+      this.hairCard.position.set(0, 1.63, 0);
       this.scene.add(this.hairCard);
     }
 

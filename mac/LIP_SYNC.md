@@ -15,15 +15,16 @@ Orb/Rigged face selection and can change during speech without restarting it.
 
 Portrait projects the original woman's image onto the facial geometry. UVs
 are registered at rest, including a local correction at the lip seam, so the
-texture follows the mouth deformations. A masked background plane retains
+texture follows the mouth deformations. A masked curved surface retains
 the hair silhouette without placing a second mouth behind the moving lips.
 A shader covers the photographed eyes with sampled skin and a lid line during
 blinks. Teeth and tongue retain their own geometry and subdued materials.
 The original PNG is unchanged, and Settings still links to it for comparison.
 
 This is a front-facing texture treatment, not a reconstructed 3D likeness.
-Portrait permits only small head turns; its hair is still a flat projection. Large
-expressions can stretch the texture; blink detail is approximate. Plain rig
+Portrait permits only small head turns; its hair uses an approximate scalp
+depth, not a full hair model. Large expressions can stretch the texture;
+blink detail is approximate. Plain rig
 restores the previous materials, hair mesh, wire overlay and subtle idle head
 movement. A fully turnable version of the woman still needs a custom model.
 The old contact sheet is retained as a reference but is no longer animated.
@@ -35,16 +36,22 @@ speech preview waits for it to load before scheduling audio.
 
 The face now makes small head turns and pitch adjustments, with occasional
 gaze shifts and blinks while idle. Listening eases back to a neutral head
-orientation, with a steadier gaze and a small brow lift. It adds no tilt or turn. Thinking
-has a different head orientation. Transitions ease instead of snapping between
+orientation, with a steadier gaze and a small brow lift. It adds no tilt or turn.
+Thinking has a different head orientation. Transitions ease instead of snapping between
 poses. These are UI-state cues, not inferred emotions or semantic nods.
 
-The head and neck bones drive the motion. The hair card is attached to the
-head bone; the bust is not translated, rotated or scaled. The rig deforms the
-neck between the moving head and nearly stationary shoulders. This replaces
+The head and neck bones drive the motion. The hair surface is attached to the
+head bone at the frontal scalp depth; the bust is not translated, rotated or
+scaled. The rig deforms the neck between the moving head and nearly stationary
+shoulders. This replaces
 the first motion attempt, which moved the whole composition and looked like
 a rotating picture. Gaze uses a small masked texture offset around the irises.
 The phoneme-driven lips remain independent of this motion.
+
+The first hair layer sat behind the skull. Although attached to the right bone,
+it moved differently from the face during turns. The curved surface corrects
+that depth mismatch. Browser tests compare forehead and hairline displacement
+in yaw and pitch and check for pixel changes at the crown.
 
 To compare without a microphone, use **Settings → Preview pose → Listening**
 or **Thinking**, then return to **Automatic** or **Rest** for idle. Other manual
