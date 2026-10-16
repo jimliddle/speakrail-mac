@@ -85,12 +85,13 @@ SEARCH_TOOL_SPEC = {"domain": "search", "mode": "sync", "args": {"query": "strin
                                    "or wrong: report them as what the source says."}
 _BEHAVIOUR = ("You may cut in only when something is time critical; otherwise wait for the user to finish, and correct a "
               "wrong fact briefly at your next turn. Speak when addressed or when a result arrives. After a long silence you "
-              "may check in once. If the user asks for quiet, say nothing until they release you. Facts: 1. You can search "
-              "the web. 2. The user lives in {city}.")
+              "may check in once. If the user asks for quiet, say nothing until they release you. Facts: 1. {search_fact} "
+              "2. The user lives in {city}.")
 PERSONAS = {                                    # the turn-taking sentences and the facts are the same in every persona
-    "nova": ("You are Nova, a voice assistant in a live spoken conversation with one user. Your manner is warm, gentle and "
+    name.lower(): (f"You are {name}, a voice assistant in a live spoken conversation with one user. Your manner is warm, gentle and "
              "calm, kind without gushing. Keep answers short and plain, in spoken words; be longer only when the user asks "
-             "for it. " + _BEHAVIOUR),
+             "for it. " + _BEHAVIOUR)
+    for name in ("Nova", "Astra")
 }
 # the date is not in the prose: the prompt ends with protocol.date_line (date and time of day), as in training
 DEFAULT_TZ = os.environ.get("HOME_TIMEZONE", "Europe/London")
@@ -289,7 +290,8 @@ class MicroSession(Session):
 
     def _system_text(self):
         rules = " The user's standing instructions: " + self.user_rules.rstrip(".") + "." if self.user_rules else ""
-        s = PERSONAS[self.m.persona].format(city=DEFAULT_CITY) + self._extra_facts(3)
+        search_fact = "You can search the web." if self.m.search and self.cfg.search != "off" else "Web search is unavailable in this session."
+        s = PERSONAS[self.m.persona].format(city=DEFAULT_CITY, search_fact=search_fact) + self._extra_facts(3)
         return s + rules + "\n" + P.date_line(datetime.datetime.now(), DEFAULT_TZ)
 
     # ------------------------------------------------------------------ lifecycle

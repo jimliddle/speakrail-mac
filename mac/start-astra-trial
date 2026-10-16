@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+echo 'Astra conversation trial: http://127.0.0.1:18183/?visualizer=mesh'
+exec .venv/bin/python -u local_stack.py --port 18183 --persona astra --conversation-only "$@"

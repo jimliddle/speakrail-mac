@@ -61,6 +61,32 @@ and speech articulation remain available.
 
 ## Install and try
 
+### Astra conversation trial
+
+Run `bash mac/start-astra-trial` from the repository root, then open
+`http://127.0.0.1:18183/?visualizer=mesh` when the models are ready. This is a
+separate local conversation server, not the sample-only page on port 18182.
+Click **Allow microphone & start**, grant microphone permission, and speak.
+**Interrupt** stops the reply; **Stop** ends the session and releases the
+microphone. Ctrl-C in the launch terminal unloads this trial's model services.
+Closing a tab or pressing Stop does not unload the models.
+
+The conversation prompt names the assistant Astra. **Settings > Preview speech**
+plays "Hi, I'm Astra, how is your day going today?" before starting a session.
+The greeting is a separate locally generated sample; the original synthetic
+voice reference is unchanged. It does not automatically play on connection.
+Use `mac/.venv/bin/python mac/render_astra_intro.py` to regenerate it.
+
+This launcher disables web search, local tools, hosted agents, session recordings
+and optional listening notes (unsupported by the local completions adapter).
+It retains the normal conversation history for the current connection. The
+diagnostic service logs can contain transcribed speech and replies, so treat
+`mac/*-ui.log` and the other runtime logs as private. The launcher does not
+modify SwiftBar or the private voice-agent integration. A busy port is an error;
+use `--port` to choose another one rather than stopping an unrelated service.
+
+### Sample-only preview
+
 For a sample-only preview after installing the dependencies, run
 `bash mac/preview-mesh` and open `http://127.0.0.1:18182/?visualizer=mesh`.
 Click **Preview speech** below the face (also available in Settings).
@@ -151,9 +177,15 @@ overlay, matching mouth weights on teeth and tongue, immediate reset, reduced
 motion, portrait texture loading, appearance switching/persistence, blink
 pixels, desktop/mobile/landscape framing, subtitle clearance and fallback
 after WebGL context loss. These checks do not establish
-natural-looking speech. Real-model conversation and Safari still need a
-separate review. The preview uses the existing bundled audio; its licence is
+natural-looking speech. Safari and physical-microphone behaviour still need a
+separate review. The preview uses the generated Astra greeting; its licence is
 separate from the CC0 avatar.
+
+With the Astra trial running, `node mac/test_astra_live.cjs` checks its identity,
+three spoken turns, name recall, live phoneme animation and Stop cleanup using
+synthetic microphone audio. It writes only synthetic test artifacts under
+`mac/test-tmp`. `tests/test_astra.py` checks the persona and capability prompt
+without loading models.
 
 Motion unit tests cover bounded movement, eased entry/exit, frame-rate
 independence, resuming after a background pause and reduced-motion reset.

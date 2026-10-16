@@ -60,7 +60,7 @@ def micro_cfg(q, cfg):
     key_ok = check_key(q.get("ck"))
     return MicroCfg(url=ARGS.mt_url, lora=os.environ.get("LLM_LORA", "speakrail"),
                     think_model=os.environ.get("LLM_BASE_MODEL", "speakrail-base"), undo_words=ARGS.undo_words, tool_hold_ms=ARGS.tool_hold_ms,
-                    persona=ARGS.persona,
+                    persona=ARGS.persona, tools=not ARGS.no_tools,
                     allow_interject=not ARGS.no_interject, silence_fallback_ms=cfg.silence_ms,
                     notes=ARGS.notes, phrase_cache=not ARGS.no_phrase_cache, safety_yield_s=ARGS.safety_yield_s,
                     claude=bool(ARGS.claude and key_ok), claude_model=ARGS.claude_model or None,
@@ -177,15 +177,15 @@ def alignment_service():
 
 
 async def avatar_preview(request):
-    """Audible, phoneme-timed preview using only the already-bundled voice sample."""
+    """Audible, phoneme-timed preview using the locally rendered Astra greeting."""
     service = alignment_service()
     if service is None:
         return web.json_response({"error": "Install the optional lip-sync package; see mac/LIP_SYNC.md."}, status=503)
     cache = request.app[PREVIEW_CACHE]
     if "data" not in cache:
-        with wave.open(os.path.join(HERE, "voices", "female_a.wav")) as sample:
+        with wave.open(os.path.join(HERE, "voices", "astra_intro.wav")) as sample:
             pcm = sample.readframes(sample.getnframes())
-        with open(os.path.join(HERE, "voices", "female_a.txt")) as transcript:
+        with open(os.path.join(HERE, "voices", "astra_intro.txt")) as transcript:
             text = transcript.read().strip()
         try:
             result = await service.align(pcm, text)
@@ -213,7 +213,7 @@ def main():
     ap.add_argument("--port", type=int, default=env_int("UI_PORT", 8080))
     ap.add_argument("--host", default=os.environ.get("UI_HOST", "127.0.0.1"))
     ap.add_argument("--voice", default=os.environ.get("VOICE", ""), help="Breeze reference wav; its transcript sits next to it as .txt")
-    ap.add_argument("--persona", default=os.environ.get("PERSONA", "nova"), choices=["nova"])
+    ap.add_argument("--persona", default=os.environ.get("PERSONA", "nova"), choices=["nova", "astra"])
     ap.add_argument("--sessions-dir", default=os.environ.get("SESSIONS_DIR", ""),
                     help="save each session's event log, context and audio recording here ('' = off, the default)")
     # turn taking
@@ -232,6 +232,7 @@ def main():
                     help="never offer <interject> (short remarks while the user keeps talking)")
     ap.add_argument("--no-phrase-cache", action="store_true", help="never play a first clause from pre-rendered clips")
     # tools
+    ap.add_argument("--no-tools", action="store_true", help="disable local conversation tools")
     ap.add_argument("--tool-hold-ms", type=int, default=env_int("TOOL_HOLD_MS", 600), help="run tool calls only after this much quiet (0 = off)")
     ap.add_argument("--search", default=os.environ.get("SEARCH", "off"), choices=["searxng", "serper", "brave", "off"],
                     help="web search backend for the web_search tool (off by default)")

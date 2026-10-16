@@ -13,6 +13,7 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | Gemma, Speakrail adapter, Voxtral and turn head | Downloaded separately via the pinned upstream manifest; retain model-publisher terms |
 | Breeze TTS 2 MLX weights, derivatives, outputs | BreezeBlue Research and Non-Commercial License, not Apache-2.0 |
 | Upstream `app/voices/female_a.wav` | Synthetic Breeze output; same research/non-commercial terms |
+| Trial `app/voices/astra_intro.wav` | Locally generated Breeze output, using the upstream synthetic reference; same research/non-commercial terms; not a recording of a person |
 | Open-Meteo weather data | CC BY 4.0; credit Open-Meteo.com |
 | Onest typography | Original browser Google Fonts resource; no font files added |
 | Optional PocketSphinx 5.0.4 decoder and bundled English models/dictionary | Installed separately from PyPI; BSD-style notices retained in the distribution; used for local phoneme timing |
@@ -38,5 +39,6 @@ Sources:
 - https://github.com/met4citizen/TalkingHead/tree/2afe6d79779313db8909badebf46f9805a6c7b70
 - https://github.com/mrdoob/three.js/tree/r180
 
-Model weights and newly generated audio are intentionally excluded from this
-fork. Retaining the code's Apache licence does not remove model/output terms.
+Model weights and session audio are excluded from this fork. The isolated
+portrait trial includes one generated Astra greeting for sample playback.
+Retaining the code's Apache licence does not remove model/output terms.

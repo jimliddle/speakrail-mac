@@ -43,6 +43,7 @@ const path = require('node:path');
       assert.equal(await page.locator('#go').textContent(), 'Preview speech');
       await page.locator('#go').click();
       await page.waitForFunction(() => speechPreview?.start != null);
+      assert.equal(await page.locator('#bot').textContent(), "Hi, I'm Astra, how is your day going today?");
       assert.equal(await page.locator('#go').textContent(), 'Stop preview');
       assert(await page.evaluate(() => !running && !stream && micRequests === 0));
       assert.equal((await page.request.get(url + route + 'ws')).status(), 409);
