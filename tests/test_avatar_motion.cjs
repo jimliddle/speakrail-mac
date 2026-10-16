@@ -8,7 +8,7 @@ function advance(motion, state, start, seconds, hz = 60) {
   return value;
 }
 
-test('head movement stays restrained; listening settles with a distinct posture', () => {
+test('idle moves gently; listening returns all head angles to neutral', () => {
   const motion = new AvatarMotion(() => .9);
   const idle = advance(motion, 'idle', 0, 8);
   assert(Math.abs(idle.gazeX) > .001);
@@ -16,10 +16,21 @@ test('head movement stays restrained; listening settles with a distinct posture'
   const entry = motion.sample(8016, 'listening');
   assert(Math.abs(entry.roll - idle.roll) < .001, 'No jump on entry');
   const listening = advance(motion, 'listening', 8016, 6);
-  assert(listening.attention > .99 && listening.pitch > .035);
-  assert(Math.abs(listening.yaw) < .006 && Math.abs(listening.gazeX) < .0003);
+  assert(listening.attention > .99);
+  for (const key of ['pitch', 'yaw', 'roll']) assert(listening[key] === 0, key);
+  assert(Math.abs(listening.gazeX) < .0003);
   const exit = motion.sample(14048, 'idle');
   assert(Math.abs(exit.roll - listening.roll) < .001, 'No jump on exit');
+});
+
+test('listening never acquires a tilt during a sustained hold', () => {
+  const motion = new AvatarMotion(() => .9);
+  advance(motion, 'thinking', 0, 4);
+  advance(motion, 'listening', 4000, 2);
+  for (let t = 6000; t < 66000; t += 16) {
+    const value = motion.sample(t, 'listening');
+    assert(value.pitch === 0 && value.yaw === 0 && value.roll === 0);
+  }
 });
 
 test('motion is frame-rate independent and does not leap after a tab suspension', () => {

@@ -36,10 +36,13 @@
       this.gazeX += (this.targetX * focus - this.gazeX) * gazeEase;
       this.gazeY += ((this.targetY * focus + this.thinking * .001) - this.gazeY) * gazeEase;
       const t = this.time, drift = Math.sin(t * .63) * .7 + Math.sin(t * .29) * .3;
+      // Listening has no pose offset. Ease existing idle motion back to neutral,
+      // then keep head angles exactly zero rather than leaving a residual lean.
+      const headFreedom = Math.max(0, 1 - this.attention / .6);
       return this.output = {
-        pitch: .016 * Math.sin(t * .91) * (1 - this.attention * .7) + .045 * this.attention - .015 * this.thinking,
-        yaw: .038 * drift * (1 - this.attention * .85) + .02 * this.thinking,
-        roll: .004 * Math.sin(t * .43) + .006 * this.attention,
+        pitch: (.016 * Math.sin(t * .91) - .015 * this.thinking) * headFreedom,
+        yaw: (.038 * drift + .02 * this.thinking) * headFreedom,
+        roll: .004 * Math.sin(t * .43) * headFreedom,
         gazeX: this.gazeX, gazeY: this.gazeY,
         attention: this.attention, thinking: this.thinking,
         brow: .02 * (Math.sin(t * .77) + 1) + .1 * this.attention,

@@ -34,8 +34,8 @@ speech preview waits for it to load before scheduling audio.
 ## Idle and listening movement
 
 The face now makes small head turns and pitch adjustments, with occasional
-gaze shifts and blinks while idle. Listening eases into a slight forward head
-inclination, with less turning, a steadier gaze and a small brow lift. Thinking
+gaze shifts and blinks while idle. Listening eases back to a neutral head
+orientation, with a steadier gaze and a small brow lift. It adds no tilt or turn. Thinking
 has a different head orientation. Transitions ease instead of snapping between
 poses. These are UI-state cues, not inferred emotions or semantic nods.
 

@@ -118,6 +118,8 @@ const net = require('node:net');
       await page.evaluate(() => { previewPose = 16; });
       await page.waitForTimeout(1800);
       assert(await page.evaluate(() => avatar.motion.output.attention > .7), 'Listening preview becomes attentive');
+      assert(await page.evaluate(() => avatar.head.quaternion.equals(avatar.headRest)
+        && avatar.neck.quaternion.equals(avatar.neckRest)), 'Listening must not tilt or turn the head');
       await page.screenshot({ path: path.join(__dirname, `portrait-listening-${width}.png`) });
       await page.evaluate(() => { previewPose = null; });
       await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -205,7 +207,8 @@ const net = require('node:net');
     assert(report.presence.geometryMotion.shoulder.count >= 6 && report.presence.geometryMotion.shoulder.max < .0002
       && report.presence.geometryMotion.head.max > report.presence.geometryMotion.shoulder.max * 10,
       'Shoulder motion stays subpixel while the head moves independently');
-    assert(report.presence.listening.attention > .9 && report.presence.listening.pitch > .035);
+    assert(report.presence.listening.attention > .9);
+    for (const key of ['pitch', 'yaw', 'roll']) assert(report.presence.listening[key] === 0, `Listening ${key} is neutral`);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.waitForFunction(() => avatar.head.quaternion.equals(avatar.headRest) && avatar.neck.quaternion.equals(avatar.neckRest));
     await page.evaluate(() => avatar.renderer.forceContextLoss());
