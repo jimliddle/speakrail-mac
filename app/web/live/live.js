@@ -21,13 +21,15 @@ const lipTimeline = new LipSyncTimeline(), pendingLipSync = new Map();
 
 // ---------------------------------------------------------------- settings dropdown
 const panel = $("panel"), gear = $("gear");
+function readSetting(key) { try { return localStorage.getItem("speakrail." + key); } catch { return null; } }
+function saveSetting(key, value) { try { localStorage.setItem("speakrail." + key, value); } catch {} }
 gear.onclick = (e) => { e.stopPropagation(); const open = panel.hidden; panel.hidden = !open; gear.setAttribute("aria-expanded", open); };
 panel.onclick = (e) => e.stopPropagation();
 document.addEventListener("click", () => { panel.hidden = true; gear.setAttribute("aria-expanded", "false"); });
 for (const id of SETTINGS) {
-  const el = $(id), saved = localStorage.getItem("speakrail." + id);
+  const el = $(id), saved = readSetting(id);
   if (saved != null) { if (el.type === "checkbox") el.checked = saved === "1"; else el.value = saved; }
-  el.onchange = () => { localStorage.setItem("speakrail." + id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); if (id === "showlog") $("log").hidden = !el.checked; if (id === "visualizer") applyVisualizer(); };
+  el.onchange = () => { saveSetting(id, el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value); if (id === "showlog") $("log").hidden = !el.checked; if (id === "visualizer") applyVisualizer(); };
 }
 $("log").hidden = !$("showlog").checked;
 if (!["0.75", "0.85", "1"].includes($("speech-pace").value)) $("speech-pace").value = "0.85";
@@ -41,12 +43,12 @@ const avatar = new MeshAvatar(() => {
   $("visualizer").value = "blob"; applyVisualizer();
   avatarNotice("Face artwork could not be loaded. Showing the original orb.");
 });
-const savedAppearance = localStorage.getItem("speakrail.avatarAppearance");
+const savedAppearance = readSetting("avatarAppearance");
 if (["portrait", "rig"].includes(savedAppearance)) $("avatar-appearance").value = savedAppearance;
 avatar.appearance = $("avatar-appearance").value;
 $("avatar-appearance").onchange = () => {
   avatar.setAppearance($("avatar-appearance").value);
-  localStorage.setItem("speakrail.avatarAppearance", $("avatar-appearance").value);
+  saveSetting("avatarAppearance", $("avatar-appearance").value);
 };
 let speechPreview = null, previewPose = null;
 function avatarNotice(text) { $("avatar-notice").textContent = text; $("avatar-notice").hidden = !text; }
@@ -55,7 +57,7 @@ function applyVisualizer() {
   document.body.dataset.visualizer = mesh ? "mesh" : "blob";
   $("avatar-preview-controls").hidden = !mesh;
   $("blob").setAttribute("aria-label", mesh ? "Animated green mesh voice agent" : "Voice activity visualization");
-  avatarNotice(mesh && running && !alignedSession ? "Restart with Mesh face selected to enable lip sync." : "");
+  avatarNotice(mesh && running && !alignedSession ? "Restart with Astra selected to enable lip sync." : "");
   if (mesh) avatar.load(); else stopSpeechPreview();
 }
 for (const [i, label] of MeshAvatar.poses.entries()) $("avatar-pose").add(new Option(label, String(i)));
@@ -65,9 +67,10 @@ $("avatar-pose").onchange = () => {
   avatarNotice(previewPose == null ? "" : "Pose preview · no microphone");
 };
 const requestedVisualizer = new URLSearchParams(location.search).get("visualizer");
-if (PREVIEW_ONLY && !requestedVisualizer) $("visualizer").value = "mesh";
-if (["blob", "mesh"].includes(requestedVisualizer)) $("visualizer").value = requestedVisualizer;
-if (!["blob", "mesh"].includes($("visualizer").value)) $("visualizer").value = "blob";
+const savedVisualizer = readSetting("visualizer");
+// A bookmarked preview link must not undo an explicit choice on the next load.
+$("visualizer").value = ["blob", "mesh"].includes(savedVisualizer) ? savedVisualizer
+  : ["blob", "mesh"].includes(requestedVisualizer) ? requestedVisualizer : "mesh";
 applyVisualizer();
 
 function outputTime(context) {
@@ -445,7 +448,6 @@ if (PREVIEW_ONLY) {
   $("barge").closest(".row").hidden = true;
   $("search").closest(".row").hidden = true;
   $("showlog").closest(".row").hidden = true;
-  panel.querySelector(".hint").hidden = true;
 }
 $("stop").onclick = () => stop(false);
 $("interrupt").onclick = () => ws && ws.readyState === 1 && ws.send(JSON.stringify({ cmd: "interrupt" }));

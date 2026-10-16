@@ -12,7 +12,7 @@ import aiohttp
 from test_speech import ROOT, VOICE, Services, free_port, pcm16, ready, start_asr, start_tts
 
 
-async def start_stack(services, ui_port, persona="nova", conversation_only=False):
+async def start_stack(services, ui_port, persona="astra", conversation_only=False):
     # Refuse a busy UI port before allocating model memory.
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", ui_port))
@@ -24,7 +24,8 @@ async def start_stack(services, ui_port, persona="nova", conversation_only=False
     process = services.start("gemma-service", [ROOT / "start-gemma-prototype", "--port", llm])
     await ready(process, llm, "/health", timeout=180)
     print("Conversation model ready", flush=True)
-    trial_options = ["--no-tools", "--no-notes"] if conversation_only else []
+    # The local completion server has no chat endpoint for background notes.
+    trial_options = ["--no-notes"] + (["--no-tools"] if conversation_only else [])
     process = services.start("voice-ui", [ROOT / ".venv/bin/python", ROOT / "mac_ui.py",
                                           "--host", "127.0.0.1", "--port", ui_port,
                                           "--persona", persona, *trial_options,
@@ -154,6 +155,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=18180)
     parser.add_argument("--test", action="store_true")
-    parser.add_argument("--persona", choices=["nova", "astra"], default="nova")
+    parser.add_argument("--persona", choices=["nova", "astra"], default="astra")
     parser.add_argument("--conversation-only", action="store_true", help="no tools or optional listening-notes model")
     asyncio.run(main(parser.parse_args()))

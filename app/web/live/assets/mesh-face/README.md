@@ -31,7 +31,7 @@ loader are vendored separately with their MIT licence.
 Face.png", copied without alteration. Its SHA-256 is
 `cf8295b6444fe43447973d0f30a0761393f509fb589568485ed9a956060b575f`.
 The Portrait appearance projects this image onto the MPFB face using rest-pose
-UVs. A separate masked plane preserves its hair silhouette. The source file
+UVs. A separate masked curved surface preserves its hair silhouette. The source file
 is unchanged; all mapping, mouth alignment and blink shading happen at
 runtime. This is a frontal approximation, not a fully sculpted 3D likeness.
 Plain rig remains available in Settings.
@@ -44,7 +44,7 @@ emerald wireframe woman and contains 15 speech/rest poses, one blink and
 eight expressions. It is bundled locally and is not fetched from an image
 service at runtime. The earlier renderer cropped the grid and labels in memory
 and held the upper face stable while blending speech poses. That renderer is
-preserved on the local `trial/mesh-face-sprites-20261015` branch.
+preserved in commit `531d314`.
 
 The sheet is now a raster reference only. See `mac/LIP_SYNC.md` for the
 current timing and quality limitations.

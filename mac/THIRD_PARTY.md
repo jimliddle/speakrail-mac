@@ -15,7 +15,7 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | Upstream `app/voices/female_a.wav` | Synthetic Breeze output; same research/non-commercial terms |
 | Trial `app/voices/astra_intro.wav` | Locally generated Breeze output, using the upstream synthetic reference; same research/non-commercial terms; not a recording of a person |
 | Open-Meteo weather data | CC BY 4.0; credit Open-Meteo.com |
-| Onest typography | Original browser Google Fonts resource; no font files added |
+| Onest typography | Older debug UI's Google Fonts resource; live avatar UI uses system fonts; no font files added |
 | Optional PocketSphinx 5.0.4 decoder and bundled English models/dictionary | Installed separately from PyPI; BSD-style notices retained in the distribution; used for local phoneme timing |
 | Mesh face contact sheet | AI-generated character artwork requested for this visualization; bundled locally |
 | Portrait reference and projected face texture | Owner-supplied original character artwork, copied unchanged; projection and blink shading are applied locally at runtime |

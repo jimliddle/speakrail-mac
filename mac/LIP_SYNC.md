@@ -1,8 +1,10 @@
-# Optional mesh face and lip-sync trial
+# Astra Avatar
 
-The original orb is still the default. Select **Settings → Visualization →
-Rigged face** to try the green 3D face. The choice is saved
-in this browser. You can switch visualizations during a conversation without
+Astra is the default for new users. Select **Settings → Visualization** to
+switch between **Astra** and **Orb (original)**. The choice is saved
+in this browser and takes priority over preview links on subsequent loads.
+If browser storage is blocked or cleared, the choice cannot persist.
+You can switch visualizations during a conversation without
 closing the microphone or restarting a model.
 
 This is a **motion prototype**, not the final character. It uses the CC0 MPFB
@@ -11,7 +13,7 @@ shapes deform the lips, teeth and tongue together. No avatar service is called.
 
 **Settings → Appearance** selects between **Portrait** (the default face
 appearance) and **Plain rig**. The choice is saved independently of the
-Orb/Rigged face selection and can change during speech without restarting it.
+Orb/Astra selection and can change during speech without restarting it.
 
 Portrait projects the original woman's image onto the facial geometry. UVs
 are registered at rest, including a local correction at the lip seam, so the
@@ -92,7 +94,7 @@ and optional listening notes (unsupported by the local completions adapter).
 It retains the normal conversation history for the current connection. The
 diagnostic service logs can contain transcribed speech and replies, so treat
 `mac/*-ui.log` and the other runtime logs as private. The launcher does not
-modify SwiftBar or the private voice-agent integration. A busy port is an error;
+install a background service. A busy port is an error;
 use `--port` to choose another one rather than stopping an unrelated service.
 
 ### Sample-only preview
@@ -119,16 +121,16 @@ aligner along with the normal environments. Model-download flags and Breeze
 licence acceptance are the same as in the main README.
 
 Open **http://127.0.0.1:18180/?visualizer=mesh**. First select **Settings →
-Preview speech**: this plays the existing 7.6-second voice sample with its
+Preview speech**: this plays Astra's greeting with its
 aligned mouth shapes, without opening a microphone or voice session.
 **Preview pose** lets you inspect all 24 mouth shapes and expressions.
 
 Then click **Allow microphone & start** for a real conversation. Start with
-Rigged face selected to request aligned audio for that session. If you started
-with the orb, switch to Rigged face, Stop, and Start again to enable alignment.
+Astra selected to request aligned audio for that session. If you started
+with the orb, switch to Astra, Stop, and Start again to enable alignment.
 During an aligned session you can switch back and forth instantly. The URL
-`?visualizer=blob` temporarily selects the original visualization without
-overwriting the saved setting. `/live/` and its static assets work too.
+`?visualizer=blob` selects the original visualization only when there is no valid
+saved choice. `/live/` and its static assets work too.
 
 ## How the timing works
 
@@ -166,7 +168,8 @@ not inferred emotional meaning.
 ## Checks
 
 ```sh
-mac/.venv/bin/python -m unittest discover -s tests -p test_lipsync.py -v
+mac/.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+mac/.venv/bin/python -m unittest discover -s mac -p test_avatar_launcher.py -v
 node --test tests/test_lip_sync_timeline.cjs
 cd mac
 npm install

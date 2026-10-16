@@ -5,9 +5,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Speakrail</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap">
 <link rel="stylesheet" href="static/live.css">
 </head>
 <body>
@@ -21,7 +18,7 @@
     </button>
     <div id="panel" class="panel" hidden>
       <div class="row"><label for="visualizer">Visualization</label>
-        <select id="visualizer"><option value="blob" selected>Orb (original)</option><option value="mesh">Rigged face</option></select></div>
+        <select id="visualizer"><option value="mesh" selected>Astra</option><option value="blob">Orb (original)</option></select></div>
       <div id="avatar-preview-controls" hidden>
         <div class="row"><label for="avatar-appearance">Appearance</label><select id="avatar-appearance"><option value="portrait">Portrait</option><option value="rig">Plain rig</option></select></div>
         <div class="row"><label for="avatar-pose">Preview pose</label><select id="avatar-pose"><option value="auto">Automatic</option></select></div>
@@ -34,7 +31,6 @@
       <div class="row"><label for="search">Web search</label>
         <select id="search" disabled><option value="off" selected>off (isolated voice test)</option></select></div>
       <div class="row check"><label><input type="checkbox" id="showlog"> show turn timings</label></div>
-      <div class="hint">Visualization switches instantly. Start with Mesh face selected to enable lip sync. Preview speech plays a sample without the microphone. Barge-in applies on the next start. Space = interrupt.</div>
     </div>
   </div>
   <div class="brand">Speakrail <span class="dot"></span></div>

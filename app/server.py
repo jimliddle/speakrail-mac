@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified by Jim Liddle, 2026: Astra preview, phoneme timing and speech pacing.
 """Speakrail web server (aiohttp).
 
     /                the voice UI (web/live)
@@ -228,7 +229,7 @@ def main():
     ap.add_argument("--port", type=int, default=env_int("UI_PORT", 8080))
     ap.add_argument("--host", default=os.environ.get("UI_HOST", "127.0.0.1"))
     ap.add_argument("--voice", default=os.environ.get("VOICE", ""), help="Breeze reference wav; its transcript sits next to it as .txt")
-    ap.add_argument("--persona", default=os.environ.get("PERSONA", "nova"), choices=["nova", "astra"])
+    ap.add_argument("--persona", default=os.environ.get("PERSONA", "astra"), choices=["nova", "astra"])
     ap.add_argument("--sessions-dir", default=os.environ.get("SESSIONS_DIR", ""),
                     help="save each session's event log, context and audio recording here ('' = off, the default)")
     # turn taking

@@ -72,7 +72,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       socket.send(packet);
     }
     await page.goto(url);
-    assert.equal(await page.locator('#visualizer').inputValue(), 'blob');
+    assert.equal(await page.locator('#visualizer').inputValue(), 'mesh');
     await page.locator('#gear').click();
     await page.locator('#visualizer').selectOption('mesh');
     await page.waitForFunction(() => avatar.ready);
@@ -138,13 +138,34 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       await page.screenshot({ path: path.join(__dirname, `mesh-preview-${width}.png`) });
     }
     await page.goto(url + '?visualizer=blob');
-    assert.equal(await page.locator('#visualizer').inputValue(), 'blob');
+    assert.equal(await page.locator('#visualizer').inputValue(), 'mesh', 'Saved choice wins over URL');
+    await page.locator('#gear').click();
+    await page.locator('#visualizer').selectOption('blob');
+    await page.reload();
+    assert.equal(await page.locator('#visualizer').inputValue(), 'blob', 'Orb persists across reload');
+    await page.goto(url + 'live/?visualizer=mesh');
+    assert.equal(await page.locator('#visualizer').inputValue(), 'blob', 'Astra link respects saved orb');
+    await page.locator('#gear').click();
+    await page.locator('#visualizer').selectOption('mesh');
     await page.goto(url);
     assert.equal(await page.locator('#visualizer').inputValue(), 'mesh');
     await page.goto(url + 'live/?visualizer=mesh');
     await page.waitForFunction(() => avatar.ready);
     assert.equal((await page.request.get(url + 'live/avatar-preview')).status(), 200);
-    report.checked.push('saved choice; URL override; desktop/mobile canvas; /live/ route');
+    await page.evaluate(() => localStorage.setItem('speakrail.visualizer', 'invalid'));
+    await page.goto(url);
+    assert.equal(await page.locator('#visualizer').inputValue(), 'mesh', 'Invalid preference falls back to Astra');
+    await page.addInitScript(() => {
+      Storage.prototype.getItem = () => { throw Error('Storage disabled'); };
+      Storage.prototype.setItem = () => { throw Error('Storage disabled'); };
+    });
+    await page.reload();
+    await page.waitForFunction(() => avatar.ready);
+    assert.equal(await page.locator('#visualizer').inputValue(), 'mesh');
+    await page.locator('#gear').click();
+    await page.locator('#visualizer').selectOption('blob');
+    assert.equal(await page.locator('#visualizer').inputValue(), 'blob', 'Switch works without storage');
+    report.checked.push('Astra default; both choices persist; saved choice wins over URL; invalid/blocked storage; desktop/mobile canvas; /live/ route');
     assert.deepEqual(report.errors, []);
   } finally {
     if (browser) await browser.close();

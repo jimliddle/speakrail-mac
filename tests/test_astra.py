@@ -12,6 +12,9 @@ from session import MicroCfg, MicroSession
 
 
 class AstraTests(unittest.TestCase):
+    def test_default_persona(self):
+        self.assertEqual(MicroCfg().persona, "astra")
+
     def prompt(self, persona="astra", search="off", rules=""):
         session = MicroSession.__new__(MicroSession)
         session.m = MicroCfg(persona=persona, tools=False)

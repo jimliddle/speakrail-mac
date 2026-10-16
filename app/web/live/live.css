@@ -1,4 +1,4 @@
-/* Speakrail voice UI: bg #151515, fg #fafafa, Onest from Google Fonts (weights 350/450/500), a light pink bar at the top. */
+/* Speakrail voice UI: system fonts and a state-dependent accent bar. */
 
 /* Modified by Jim Liddle, 2026-10-09: wrap active controls on narrow screens. */
 :root{
@@ -44,6 +44,7 @@ a.chip{text-decoration:none}
   padding:12px;box-shadow:0 20px 50px #000a;animation:drop .16s var(--ease-out)}
 @keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .panel .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 4px;font-size:13px}
+.panel{max-height:calc(100dvh - 90px);overflow-y:auto}
 .panel .row.check label{display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--color-fg-body)}
 .panel label{color:var(--color-fg-muted)}
 .panel select{font:inherit;font-size:13px;color:var(--color-fg);background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:5px 8px;min-width:150px}

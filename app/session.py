@@ -1,3 +1,4 @@
+# Modified by Jim Liddle, 2026: Astra persona and capability-aware search facts.
 """MicroSession: the live harness (the turn-taking LLM decides every turn-taking step, one token per input event).
 
 Same transport and plumbing as cascade.Session (ASR websocket + turn head + fork peek, Breeze TTS, tape, events.jsonl,
@@ -130,7 +131,7 @@ class MicroCfg:
     user_bc_tau: float = 0.95
     search: bool = True              # declare web_search (SearXNG answers it)
     tools: bool = True               # declare the local tools (tools.LOCAL_TOOLS)
-    persona: str = "nova"
+    persona: str = "astra"
     claude: bool = False             # declare claude_code (+ task_status / cancel_task): tasks for Claude Code on this
                                      # machine, reported as async results (server.py turns it on only with the access key)
     claude_model: str | None = None  # claude -p --model (None: the CLI default)

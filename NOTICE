@@ -89,3 +89,23 @@ Research and Non-Commercial License, including the original synthetic voice
 reference. See mac/licenses/BREEZE-MODEL-LICENSE.txt and mac/THIRD_PARTY.md.
 No model weights are included. Upstream copyright and attribution notices
 above are retained unchanged.
+
+--------------------------------------------------------------------------------
+Astra visualization
+--------------------------------------------------------------------------------
+
+Avatar integration, phoneme timing and motion additions: Copyright 2026 Jim Liddle.
+Apache License 2.0 for source changes.
+
+The bundled MPFB example avatar is CC0, as stated by met4citizen / TalkingHead.
+It was created with Blender and MPFB. The unchanged avatar, pinned source,
+checksum and CC0 legal text are documented in app/web/live/assets/mesh-face/.
+
+Three.js 0.180.0, GLTFLoader and BufferGeometryUtils are distributed under MIT.
+Their unmodified license is included in app/web/live/vendor/three/LICENSE.
+
+The Astra greeting, app/voices/astra_intro.wav, is an illustrative synthetic
+Breeze TTS 2 sample, not a recording of a person. It retains the research and
+non-commercial restrictions described in mac/licenses/BREEZE-MODEL-LICENSE.txt.
+Breeze TTS 2 is licensed under the BreezeBlue Research and Non-Commercial
+License Agreement. Copyright (c) 2026 RESONIA, INC. All Rights Reserved.
