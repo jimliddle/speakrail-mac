@@ -5,6 +5,34 @@ with local speech recognition, conversation and speech output. It keeps
 Speakrail's conversation controller and models, using Metal and MLX in place
 of the NVIDIA backends.
 
+## What This Fork Adds
+
+Beyond the native Mac port, this fork adds Astra and the animation and speech
+timing needed to use her in conversation:
+
+- **Apple Silicon serving:** Metal speech recognition and MLX conversation and
+  speech synthesis, with local startup, shutdown and session-scoped caching.
+- **Astra's face:** the portrait mapped onto a skinned 3D rig, rendered locally
+  with Three.js. Lip, jaw, teeth and tongue movement follow phoneme timing from
+  the generated speech rather than cycling through still images.
+- **Idle and listening motion:** blinking, gaze and subtle head/neck movement,
+  a neutral listening posture, and corrected hair movement so it follows the
+  face rather than staying fixed while the head moves.
+- **Speech and controls:** pitch-preserving pace options, alignment after tempo
+  changes, a separate greeting preview, and framing adjustments for desktop
+  and smaller screens.
+- **Avatar choice:** Astra is the default, with the original orb still available,
+  a saved browser preference and an orb fallback if the face cannot load.
+
+Speakrail's original authors supplied the conversation controller, training
+work, models and base UI. This fork builds on that work and uses the credited
+CC0 MPFB rig and MIT-licensed Three.js; it does not claim to have created those
+components. The original portrait and pose sheet are included with their
+provenance intact. See [Licensing and Credits](#licensing-and-credits).
+
+This repository is the standalone voice assistant. The separate private
+Qwen/Tavily/RAG harness integration is not included.
+
 ## Astra
 
 Astra is the default avatar: a green portrait mapped onto an animated 3D face.
