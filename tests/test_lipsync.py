@@ -50,6 +50,7 @@ class FakeSession:
         self.finished = []
 
     def _reply_of(self, utt): return self.replies.get(utt)
+    def _line(self, text): pass
     def send(self, event): self.events.append(event)
     def _send_pcm(self, utt, pcm): self.events.append((utt, pcm))
     def _maybe_finished(self, reply): self.finished.append(reply.utt)
@@ -66,6 +67,29 @@ spec = importlib.util.spec_from_file_location("isolated_lipsync_session", ROOT /
 adapter = importlib.util.module_from_spec(spec)
 with patch.dict(sys.modules, {"session": SimpleNamespace(MicroSession=FakeSession)}):
     spec.loader.exec_module(adapter)
+
+
+class ClauseTests(unittest.TestCase):
+    def test_whole_reply_and_final_tail_keep_words_with_bounded_clauses(self):
+        text = ('A headline about the local council and the new school ' * 12) + '.'
+        remaining, chunks = text, []
+        while remaining.strip():
+            chunk, remaining = adapter.cut_clause(remaining, final=True)
+            self.assertTrue(chunk)
+            self.assertLessEqual(len(chunk), 160)
+            chunks.append(chunk)
+        self.assertEqual(' '.join(chunks).split(), text.split())
+
+    def test_internal_punctuation_does_not_split_domains_numbers_or_times(self):
+        first, rest = adapter.cut_clause('example.org reports 2.5 percent at 12:30. Next story.', need=3)
+        self.assertEqual(first, 'example.org reports 2.5 percent at 12:30.')
+        self.assertEqual(rest.strip(), 'Next story.')
+
+    def test_streamed_clause_waits_for_boundary(self):
+        self.assertEqual(adapter.cut_clause('An unfinished sentence'), (None, 'An unfinished sentence'))
+        first, rest = adapter.cut_clause('Here is a reasonably long introductory clause, followed by another clause.')
+        self.assertTrue(first.endswith(','))
+        self.assertTrue(rest.startswith(' followed'))
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):

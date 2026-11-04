@@ -21,6 +21,9 @@ timing needed to use her in conversation:
 - **Speech and controls:** pitch-preserving pace options, alignment after tempo
   changes, a separate greeting preview, and framing adjustments for desktop
   and smaller screens.
+- **Lip-sync recovery:** bounded speech clauses, checks for missing or held
+  phonemes, and audio-only recovery when transcript alignment fails. Successful
+  recovery stays quiet; genuine timing failures still show a warning.
 - **Avatar choice:** Astra is the default, with the original orb still available,
   a saved browser preference and an orb fallback if the face cannot load.
 
@@ -32,6 +35,9 @@ provenance intact. See [Licensing and Credits](#licensing-and-credits).
 
 This repository is the standalone voice assistant. The separate private
 Qwen/Tavily/RAG harness integration is not included.
+The UI can display grouped news results supplied by an integration, with
+numbered stories and per-country counts. This does not enable web search in the
+standalone Mac launcher.
 
 ## Astra
 

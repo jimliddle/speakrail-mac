@@ -6,7 +6,27 @@ from session import MicroSession
 from speech_pacing import pace_pcm
 
 
+def cut_clause(text, need=40, final=False, limit=160):
+    """Bound whole tool replies and final tails as well as streamed text."""
+    for i, char in enumerate(text[:limit]):
+        if i + 1 < need or char not in '.?!;\n,':
+            continue
+        if char in '.:' and i and i + 1 < len(text) and text[i-1].isalnum() and text[i+1].isalnum():
+            continue  # Domains, decimals and clock times are not clause boundaries.
+        return text[:i+1].strip(), text[i+1:]
+    if len(text) > limit:
+        end = text.rfind(' ', 0, limit + 1)
+        end = end if end > 0 else limit
+        return text[:end].strip(), text[end:]
+    return (text.strip(), '') if final else (None, text)
+
+
 class LipSyncSession(MicroSession):
+    def _cut(self, reply, final):
+        need = self.m.first_clause_chars if reply.n_seg == 0 else self.m.next_clause_chars
+        segment, reply.out_buf = cut_clause(reply.out_buf, need, final)
+        return segment or None
+
     def __init__(self, *args, alignment_service, speech_pace=1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self.alignment_service = alignment_service
@@ -46,12 +66,21 @@ class LipSyncSession(MicroSession):
                 try:
                     result = await self.alignment_service.align(pcm, seg.text)
                 except Exception as error:
-                    result = {"cues": [], "words": [], "method": "unavailable", "reason": type(error).__name__}
+                    result = {"cues": [], "words": [], "method": "unavailable",
+                              "reason": getattr(error, 'timing_reason', type(error).__name__)}
                 reply = self._reply_of(seg.utt)
                 if self.closed or reply is None or reply.cut:
                     return
                 event = {"type": "lip_sync", "utt": seg.utt, "segment": seg.seg,
                          "samples": len(pcm) // 2, "sample_rate": 24000, **result}
+                first_motion = next((c["start"] for c in result.get("cues", []) if c.get("pose")), None)
+                if result.get('fallback_reason') or result.get('method') == 'unavailable':
+                    print(f"[lip-timing] utt={seg.utt} segment={seg.seg} method={result.get('method')} "
+                          f"reason={result.get('fallback_reason', result.get('reason', '-'))} "
+                          f"duration_s={len(pcm) / 48000:.3f}", flush=True)
+                self._line(f"    LIP_SYNC utt={seg.utt} segment={seg.seg} method={result.get('method')} "
+                           f"first_motion_s={first_motion} fallback={result.get('fallback_reason', '-')} "
+                           f"alignment_ms={result.get('alignment_ms', '-')} samples={len(pcm) // 2}")
                 # A speculative reply can still be held. Send cues only when its
                 # matching PCM is actually released by the normal controller.
                 self.alignment_events[id(pcm)] = (seg.utt, event)

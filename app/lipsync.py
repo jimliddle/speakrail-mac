@@ -10,6 +10,7 @@ import asyncio
 from concurrent.futures import ProcessPoolExecutor
 import importlib.util
 import multiprocessing
+import math
 from pathlib import Path
 import re
 import time
@@ -29,8 +30,46 @@ _decoder = None
 _phone_decoder = None
 
 
+class AlignmentTimingError(RuntimeError):
+    @property
+    def timing_reason(self):
+        return str(self)
+
+
 def available():
     return importlib.util.find_spec("pocketsphinx") is not None
+
+
+def timing_issue(phones, samples, rate=RATE):
+    """Use audio energy only to reject missing timing, never to invent poses."""
+    import numpy as np
+    duration = len(samples) / rate
+    if not phones:
+        return 'empty'
+    step = max(1, round(rate * .02))
+    padded = np.pad(np.asarray(samples, dtype=np.float32), (0, (-len(samples)) % step))
+    rms = np.sqrt(np.mean(padded.reshape(-1, step) ** 2, axis=1))
+    active = rms > max(80, float(np.percentile(rms, 90)) * .08)
+    covered = np.zeros(len(active), dtype=bool)
+    last_end = 0.0
+    for phone, start, end in phones:
+        if not math.isfinite(start) or not math.isfinite(end) or start < -.02 or end <= start or end > duration + .08 or start < last_end - .03:
+            return 'invalid-boundaries'
+        last_end = end
+        phone = re.sub(r'\d+$', '', phone.upper())
+        if phone in ('SIL', '+SPN+', '+NSN+', '<SIL>', '<S>', '</S>'):
+            continue
+        if end - start > 1.2:
+            return 'held-phone'
+        # Small edge tolerance avoids treating decoder frame rounding as a gap.
+        left, right = max(0, int((start - .04) / .02)), min(len(active), math.ceil((end + .04) / .02))
+        covered[left:right] = True
+    run = 0
+    for missing in active & ~covered:
+        run = run + 1 if missing else 0
+        if run >= 18:
+            return 'uncovered-speech'
+    return None
 
 
 def align(pcm: bytes, text: str) -> dict:
@@ -59,26 +98,46 @@ def align(pcm: bytes, text: str) -> dict:
         decoder.end_utt()
 
     word_cues = []
+    fallback_reason = None
     if forced:
-        _decoder.set_align_text(" ".join(words))
-        decode(_decoder)
-        _decoder.set_alignment()
-        decode(_decoder)
-        alignment = _decoder.get_alignment()
-        if alignment is None:
-            raise RuntimeError("No phoneme alignment for this audio")
-        phones = [(p.name, p.start / 100, (p.start + p.duration) / 100) for p in alignment.phones()]
-        word_cues = [{"word": w.name, "start": w.start / 100, "end": (w.start + w.duration) / 100}
-                     for w in alignment if w.name not in ("<sil>", "<s>", "</s>")]
-    else:
+        try:
+            _decoder.set_align_text(" ".join(words))
+            decode(_decoder)
+            _decoder.set_alignment()
+            decode(_decoder)
+            alignment = _decoder.get_alignment()
+            if alignment is None:
+                raise RuntimeError("No phoneme alignment for this audio")
+            phones = [(p.name, p.start / 100, (p.start + p.duration) / 100) for p in alignment.phones()]
+            if not phones:
+                raise RuntimeError("Empty phoneme alignment")
+            issue = timing_issue(phones, samples)
+            if issue:
+                fallback_reason = 'forced-' + issue
+                raise ValueError('Incomplete or implausible forced timing')
+            word_cues = [{"word": w.name, "start": w.start / 100, "end": (w.start + w.duration) / 100}
+                         for w in alignment if w.name not in ("<sil>", "<s>", "</s>")]
+        except (RuntimeError, ValueError):
+            # A known word list can still fail to match synthesized speech.
+            # Discard the failed decoder state and align the same PCM acoustically.
+            _decoder = None
+            forced = False
+            fallback_reason = fallback_reason or "forced-alignment-failed"
+    if not forced:
         # The bundled lexicon cannot cover all names/numbers. Use acoustic
         # phoneme recognition for those segments, and label it as less accurate.
         if _phone_decoder is None:
             model = Path(get_model_path()) / "en-us" / "en-us-phone.lm.bin"
+            # Narrow pruning can collapse the remaining clause into one held
+            # phone. Keep enough acoustic hypotheses to cover the full clip.
             _phone_decoder = Decoder(samprate=16000, lm=None, allphone=str(model),
-                                     beam=1e-20, pbeam=1e-20, loglevel="ERROR")
+                                     beam=1e-48, pbeam=1e-48, loglevel="ERROR")
         decode(_phone_decoder)
         phones = [(p.word, p.start_frame / 100, (p.end_frame + 1) / 100) for p in _phone_decoder.seg()]
+        issue = timing_issue(phones, samples)
+        if issue:
+            _phone_decoder = None
+            raise AlignmentTimingError('acoustic-' + issue)
     cues = []
     for i, (phone, start, end) in enumerate(phones):
         phone = re.sub(r"\d+$", "", phone.upper())
@@ -96,6 +155,7 @@ def align(pcm: bytes, text: str) -> dict:
                          "pose": pose, "phone": phone})
     return {"cues": cues, "words": word_cues, "duration": duration,
             "method": "forced-phoneme" if forced else "acoustic-phoneme",
+            **({"fallback_reason": fallback_reason} if fallback_reason else {}),
             "alignment_ms": round((time.monotonic() - started) * 1000, 1)}
 
 

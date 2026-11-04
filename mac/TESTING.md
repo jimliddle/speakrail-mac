@@ -75,6 +75,46 @@ The scripts generate local results files so the tests can be repeated.
 The packaged setup script has been checked in plan mode; a complete install
 on a second, clean Mac has not been tested.
 
+## Lip-sync recovery and cards: 4 November 2026
+
+The publication checks passed on the same Mac:
+
+- 32 Python tests under `tests/`, including real bundled-sample alignment,
+  failed and partial forced alignment, held phones, decoder reuse, clause
+  limits, pacing, interruption and playback acknowledgements.
+- Three launcher checks with mocked model services. The standalone launcher's
+  capability settings are unchanged.
+- Seven JavaScript animation and lip-timeline tests.
+- The Chromium visualizer check, including real greeting alignment, scripted
+  speech packets, silent successful fallback, visible alignment failure,
+  persisted avatar choices, blocked browser storage, interruption and Stop.
+- Grouped-card fixtures with complete and partial counts at 1440x900, 390x844
+  and 844x390. Checks cover selected IDs, replacement of same-turn cards,
+  scrolling and Start-button clearance. Screenshots were inspected locally.
+
+Run these checks from the repository root:
+
+```sh
+mac/.venv/bin/python -B -m unittest discover -s tests -p 'test_*.py'
+mac/.venv/bin/python -B -m unittest discover -s mac -p test_avatar_launcher.py
+node --test tests/test_lip_sync_timeline.cjs tests/test_avatar_motion.cjs
+node mac/test_visualizer.cjs
+```
+
+The UI accepts optional `groups` in a `search_done` event. Each group supplies
+`region`, `requested_count` and `results`; each result includes its title,
+source, URL and stable `brief_id`. An integration must send the same selected
+items it speaks. These tests exercise that display contract, not Tavily or a
+news-ranking system. General web search remains disabled in the Mac launcher.
+
+Earlier full-playback tests in the separate local harness exercised six
+synthetic stories, including a deliberately broken final-clause alignment.
+The recovered clause had continuous timings; its previous acoustic decode had
+held one phone for almost six seconds. Those tests motivated these fixes but
+do not substitute for a fresh standalone model-stack or clean-install test.
+Private harness configuration, transcripts and raw test artifacts are not
+part of this repository.
+
 ## What remains untested
 
 Long conversations, noisy microphones, room echo, other languages, smaller

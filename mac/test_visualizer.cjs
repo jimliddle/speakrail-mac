@@ -61,12 +61,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       route.send(JSON.stringify({ type: 'lip_sync_status', available: true }));
     });
     const send = event => socket.send(JSON.stringify(event));
-    function speech(utt) {
+    function speech(utt, method = 'forced-phoneme') {
       const samples = 24000, packet = Buffer.alloc(4 + samples * 2);
       packet.writeUInt16LE(utt, 0);
       // Constant volume throughout: different mouth poses must come from cues.
       for (let i = 0; i < samples; i++) packet.writeInt16LE(Math.round(8000 * Math.sin(i * Math.PI * 2 * 180 / 24000)), 4 + i * 2);
-      send({ type: 'lip_sync', utt, segment: 0, samples, sample_rate: 24000, method: 'forced-phoneme', cues: [
+      send({ type: 'lip_sync', utt, segment: 0, samples, sample_rate: 24000, method, cues: [
         { start: 0, end: 0.22, pose: 1 }, { start: 0.22, end: 0.75, pose: 10 }, { start: 0.75, end: 1, pose: 0 },
       ] });
       socket.send(packet);
@@ -92,10 +92,14 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     await page.locator('#go').click();
     await page.waitForFunction(() => running);
     assert(new URL(socketURL).searchParams.get('lipsync') === 'phoneme');
+    send({ type: 'lip_sync', utt: 99, segment: 0, method: 'unavailable', cues: [] });
+    await page.waitForFunction(() => !$('avatar-notice').hidden);
+    assert.match(await page.locator('#avatar-notice').textContent(), /could not be aligned/);
     send({ type: 'reply_start' }); send({ type: 'reply_delta', text: 'This is synchronized speech.' });
     await page.waitForFunction(() => uiState === 'thinking');
     speech(1); send({ type: 'reply_end' });
     await page.waitForFunction(() => uiState === 'speaking' && avatar.pose === 1);
+    assert(await page.locator('#avatar-notice').isHidden());
     await page.waitForFunction(() => avatar.pose === 10);
     assert(playbackAcks.some(ack => ack.utt === 1 && ack.segment === 0 && ack.remaining_ms > 0));
     // reply_end has already arrived, but audible playback still drives the face.
@@ -105,8 +109,10 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert(await page.evaluate(() => lipTimeline.tracks.length === 0 && audioWindows.length === 0));
     report.checked.push('phoneme-specific constant-volume poses; playback tail; interruption cleanup');
 
-    speech(2); send({ type: 'reply_end' });
+    speech(2, 'acoustic-phoneme'); send({ type: 'reply_end' });
     await page.waitForFunction(() => uiState === 'speaking');
+    assert(await page.locator('#avatar-notice').isHidden(), 'Successful audio-only timing is not a user warning');
+    report.checked.push('alignment failures visible; successful forced and acoustic timing silent');
     await page.locator('#gear').click();
     assert(await page.locator('#visualizer').isEnabled());
     await page.locator('#visualizer').selectOption('blob');
@@ -136,7 +142,33 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       });
       assert(pixels > 1000, 'Portrait must actually be drawn');
       await page.screenshot({ path: path.join(__dirname, `mesh-preview-${width}.png`) });
+      for (const [count, requested] of [[3, 3], [2, 3], [2, 2]]) {
+        const groups = ['UK', 'US'].map((region, i) => ({region, requested_count: requested,
+          results: Array.from({length: count}, (_, j) => ({brief_id: `${i}:${j}`, region,
+            title: `Synthetic ${region} item ${j + 1}: a longer headline about a local transport project`,
+            source: 'example.org', url: `https://example.org/${region}/${j}`}))}));
+        await page.evaluate(groups => {
+          cardSearch({turn: 99, query: 'UK and US news'});
+          cardDone({turn: 99, n: groups.flatMap(g => g.results).length, ms: 100,
+            groups, results: groups.flatMap(g => g.results)});
+        }, groups);
+        assert.equal(await page.locator('.news-card').count(), 1);
+        assert.deepEqual(await page.locator('.news-results h3').allTextContents(),
+          [`UK: ${count} of ${requested}`, `US: ${count} of ${requested}`]);
+        assert.deepEqual(await page.locator('.news-results [data-brief-id]').evaluateAll(nodes => nodes.map(n => n.dataset.briefId)),
+          groups.flatMap(g => g.results.map(r => r.brief_id)));
+        const bounds = await page.locator('.news-card').boundingBox();
+        const button = await page.locator('#go').boundingBox();
+        assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+        assert(bounds.x + bounds.width <= button.x || bounds.x >= button.x + button.width ||
+          bounds.y + bounds.height <= button.y || bounds.y >= button.y + button.height, 'News card must not cover Start');
+        await page.locator('.news-results').evaluate(node => node.scrollTop = node.scrollHeight);
+        assert(await page.locator('.news-results').evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop < 2));
+        await page.locator('.news-results').evaluate(node => node.scrollTop = 0);
+        await page.screenshot({path: path.join(__dirname, `news-card-${width}-${count}-of-${requested}.png`)});
+      }
     }
+    report.checked.push('regional cards: complete/partial counts, same-turn replacement, scroll access and Start-button clearance');
     await page.goto(url + '?visualizer=blob');
     assert.equal(await page.locator('#visualizer').inputValue(), 'mesh', 'Saved choice wins over URL');
     await page.locator('#gear').click();

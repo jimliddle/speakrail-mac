@@ -138,6 +138,9 @@ The optional path buffers each existing TTS clause, aligns the exact generated
 PCM and its transcript with PocketSphinx, and sends phoneme boundaries before
 the matching audio. It uses a separate CPU process and never contacts a
 speech service. The original orb session retains the existing streaming path.
+Aligned clauses are capped at 160 characters, including whole tool responses
+and final tails. The splitter keeps internal domain, decimal and time
+punctuation intact. This bounds the audio that must be ready before playback.
 Speculative replies keep both their cues and audio hidden until committed;
 interruption discards both.
 
@@ -159,8 +162,15 @@ the development environment; that is not a Mac performance measurement.
 
 The bundled alignment model is English. Words in its lexicon use transcript
 forced alignment; names outside the lexicon and digits use a less accurate
-audio-only phoneme recognizer and show a notice. Non-English speech is not
-validated. Alignment errors leave the mouth at rest for that clause while
+audio-only phoneme recognizer. Failed, incomplete or implausibly held forced
+timings also fall back to that recognizer on the same clip. Both paths check
+timing boundaries and audible coverage. Wider acoustic search beams avoid a
+failure seen in testing where one phone covered almost six seconds of speech.
+Audio energy only validates coverage; it never supplies mouth poses.
+
+Successful fallback is recorded in diagnostics without a banner above the face.
+Non-English speech is not validated. If both methods fail, the UI reports it
+and leaves the mouth at rest for that clause while
 audio continues; the UI does not substitute invented lip timing. Other
 expressions are driven by listening/thinking/error state or manual preview,
 not inferred emotional meaning.

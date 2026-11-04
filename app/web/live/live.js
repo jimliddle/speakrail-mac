@@ -240,6 +240,8 @@ const cards = $("cards"); const cardByTurn = {};
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 function cardSearch(m) {
   for (const t in cardByTurn) if (+t !== m.turn) dropCard(+t);
+  const previous = cardByTurn[m.turn];
+  if (previous) { clearTimeout(previous.ttl); previous.remove(); delete cardByTurn[m.turn]; }
   const c = document.createElement("div"); c.className = "card";
   c.innerHTML = `<div class="head"><span class="spin"></span>Searching the web<span class="meta">…</span></div><div class="q">${esc(m.query)}</div>`;
   cards.appendChild(c); cardByTurn[m.turn] = c;
@@ -247,8 +249,44 @@ function cardSearch(m) {
 }
 function cardDone(m) {
   const c = cardByTurn[m.turn]; if (!c) return;
+  clearTimeout(c.ttl); c.ttl = setTimeout(() => dropCard(m.turn), 90000);
+  c.querySelectorAll('.news-results,.res,.none').forEach(node => node.remove());
   const head = c.querySelector(".head");
   head.innerHTML = (m.n < 0 ? "Search failed" : "Web search") + `<span class="meta">${m.n < 0 ? "" : m.n + " results · "}${m.ms} ms</span>`;
+  if (Array.isArray(m.groups)) {
+    c.classList.add('news-card');
+    head.firstChild.textContent = m.n < 0 ? 'Search failed' : 'News briefing';
+    const body = document.createElement('div'); body.className = 'news-results';
+    for (const group of m.groups) {
+      const section = document.createElement('section'); section.dataset.region = group.region || '';
+      const rows = group.results || [];
+      const heading = document.createElement('h3');
+      heading.textContent = `${group.region || 'Headlines'}: ${rows.length} of ${group.requested_count ?? m.requested_count}`;
+      section.appendChild(heading);
+      if (!rows.length) {
+        const empty = document.createElement('div'); empty.className = 'none';
+        empty.textContent = group.error ? 'This search failed.' : 'No usable individual stories returned.';
+        section.appendChild(empty);
+      }
+      const list = document.createElement('ol');
+      for (const row of rows) {
+        const item = document.createElement('li'); item.className = 'res'; item.dataset.briefId = row.brief_id;
+        const title = document.createElement('a'); title.className = 't'; title.textContent = row.title;
+        try {
+          const url = new URL(row.url);
+          if (['http:','https:'].includes(url.protocol) && !url.username && !url.password) {
+            title.href = url.href; title.target = '_blank'; title.rel = 'noopener noreferrer';
+          }
+        } catch {}
+        const source = document.createElement('div'); source.className = 'u';
+        source.textContent = row.source || '';
+        item.append(title, source); list.appendChild(item);
+      }
+      section.appendChild(list); body.appendChild(section);
+    }
+    c.appendChild(body);
+    return;
+  }
   const res = (m.results || []).slice(0, 4);
   if (!res.length) c.insertAdjacentHTML("beforeend", `<div class="none">${m.n < 0 ? "The search did not answer in time." : "Nothing useful came back."}</div>`);
   for (const r of res) {
@@ -283,7 +321,7 @@ function cardMemory(st) {
   if (cs.length) h += `<div class="sec">Counters</div><div class="kv">${cs.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${v}</span>`).join("")}</div>`;
   c.innerHTML = h;
 }
-function dropCard(turn) { const c = cardByTurn[turn]; if (!c) return; delete cardByTurn[turn]; c.classList.add("gone"); setTimeout(() => c.remove(), 450); }
+function dropCard(turn) { const c = cardByTurn[turn]; if (!c) return; clearTimeout(c.ttl); delete cardByTurn[turn]; c.classList.add("gone"); setTimeout(() => c.remove(), 450); }
 
 // ---------------------------------------------------------------- timings log (optional)
 function logTurn(m) {
@@ -311,7 +349,6 @@ function onMessage(ev) {
       if (!pendingLipSync.has(m.utt)) pendingLipSync.set(m.utt, []);
       pendingLipSync.get(m.utt).push(m);
       if (m.method === "unavailable") avatarNotice("Lip timing could not be aligned for this clause. Mouth animation is paused.");
-      else if (m.method === "acoustic-phoneme") avatarNotice("Lip sync is using audio-only timing for this clause.");
       else avatarNotice("");
       break;
     }
