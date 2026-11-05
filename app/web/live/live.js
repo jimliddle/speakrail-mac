@@ -152,7 +152,9 @@ function resize() {
   canvas.width = canvas.clientWidth * dpr; canvas.height = canvas.clientHeight * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-window.addEventListener("resize", resize); resize();
+window.addEventListener("resize", resize);
+new ResizeObserver(resize).observe(canvas);
+resize();
 
 function drawBlob(t) {
   const w = canvas.clientWidth, h = canvas.clientHeight, cx = w / 2, cy = h / 2;
@@ -168,7 +170,8 @@ function drawBlob(t) {
     const previewSpeaking = speechPreview?.start != null && previewTime >= speechPreview.start && previewTime < speechPreview.end;
     const state = previewSpeaking ? "speaking" : uiState;
     const mouthWeights = previewSpeaking ? speechPreview.timeline.sample(previewTime) : lipTimeline.sample(audioTime);
-    avatar.draw(ctx, t, w, h, { state, mouthWeights, previewPose: running ? null : previewPose });
+    avatar.draw(ctx, t, w, h, { state, mouthWeights, previewPose: running ? null : previewPose,
+      bottomInset: $('go').hidden ? 16 : 68 });
     canvas.dataset.avatarPose = MeshAvatar.poses[avatar.pose];
     requestAnimationFrame(drawBlob); return;
   }
@@ -231,25 +234,88 @@ const clean = (s) => s.replace(/<\|[a-z_]+:[a-z_]+\|>/g, "").replace(/<\|[^>]*$/
 function showUser(text) { userRaw = text; subUser.textContent = text; subUser.classList.toggle("show", !!text); }
 function showBot(text, cut) {
   botRaw = text; subBot.textContent = clean(text); subBot.classList.add("show"); subBot.classList.toggle("cut", !!cut);
+  const captions = subBot.closest('.subs');
+  captions.scrollTop = captions.scrollHeight;
   clearTimeout(fadeTimer);
 }
 function fadeBotLater(ms) { clearTimeout(fadeTimer); fadeTimer = setTimeout(() => { subBot.classList.remove("show"); subUser.classList.remove("show"); }, ms); }
 
-// ---------------------------------------------------------------- search cards
+// Results stay off-stage until explicitly opened. Keep a bounded session history.
 const cards = $("cards"); const cardByTurn = {};
+let selectedResult = null, resultOpener = null;
+function closeDetails(restoreFocus = true) {
+  $('result-panel').hidden = true;
+  document.querySelector('main').classList.remove('details-open');
+  for (const c of Object.values(cardByTurn)) {
+    c.hidden = true;
+    c.activity.querySelector('button').setAttribute('aria-expanded', 'false');
+  }
+  selectedResult = null;
+  if (restoreFocus && resultOpener?.isConnected) resultOpener.focus();
+}
+function openDetails(key, button) {
+  const c = cardByTurn[key]; if (!c) return;
+  closeDetails(false);
+  selectedResult = String(key); resultOpener = button;
+  c.hidden = false;
+  $('result-title').textContent = c.resultTitle;
+  $('result-panel').hidden = false;
+  document.querySelector('main').classList.add('details-open');
+  button.setAttribute('aria-expanded', 'true');
+  $('result-content').scrollTop = 0;
+  $('close-details').focus({preventScroll: true});
+}
+$('close-details').onclick = () => closeDetails();
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('result-panel').hidden) {
+    event.preventDefault(); closeDetails();
+  }
+});
+function presentResult(c, key, title, status, pending = false) {
+  key = String(key);
+  const previous = cardByTurn[key];
+  const wasOpen = selectedResult === key;
+  if (previous && previous !== c) {
+    c.activity = previous.activity;
+    previous.remove();
+  }
+  if (!c.activity) {
+    const row = document.createElement('div'); row.className = 'activity-row';
+    const label = document.createElement('span'); label.className = 'activity-label';
+    const button = document.createElement('button'); button.className = 'chip';
+    button.textContent = 'View details'; button.setAttribute('aria-controls', 'result-panel');
+    button.setAttribute('aria-expanded', 'false');
+    button.onclick = () => openDetails(key, button);
+    row.append(label, button); cards.prepend(row); c.activity = row;
+  }
+  c.resultTitle = title;
+  c.activity.querySelector('.activity-label').textContent = `${title} · ${status}`;
+  c.activity.querySelector('button').setAttribute('aria-label', `View details: ${title}`);
+  c.activity.classList.toggle('pending', pending);
+  c.hidden = !wasOpen;
+  cardByTurn[key] = c;
+  $('result-content').appendChild(c);
+  if (wasOpen) $('result-title').textContent = title;
+  cards.hidden = false;
+  // Updating a running task does not interrupt reading another result.
+  if (cards.firstChild !== c.activity) cards.prepend(c.activity);
+  while (cards.children.length > 12) {
+    const oldest = cards.lastChild;
+    const entry = Object.entries(cardByTurn).find(([, item]) => item.activity === oldest);
+    if (entry) dropCard(entry[0]); else oldest.remove();
+  }
+}
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 function cardSearch(m) {
-  for (const t in cardByTurn) if (+t !== m.turn) dropCard(+t);
-  const previous = cardByTurn[m.turn];
-  if (previous) { clearTimeout(previous.ttl); previous.remove(); delete cardByTurn[m.turn]; }
   const c = document.createElement("div"); c.className = "card";
   c.innerHTML = `<div class="head"><span class="spin"></span>Searching the web<span class="meta">…</span></div><div class="q">${esc(m.query)}</div>`;
-  cards.appendChild(c); cardByTurn[m.turn] = c;
-  clearTimeout(c.ttl); c.ttl = setTimeout(() => dropCard(m.turn), 40000);
+  presentResult(c, m.turn, 'Web search', 'Searching', true);
 }
 function cardDone(m) {
-  const c = cardByTurn[m.turn]; if (!c) return;
-  clearTimeout(c.ttl); c.ttl = setTimeout(() => dropCard(m.turn), 90000);
+  if (!cardByTurn[m.turn]) cardSearch({...m, query: m.query || ''});
+  const c = cardByTurn[m.turn];
+  presentResult(c, m.turn, Array.isArray(m.groups) ? 'News briefing' : 'Web search',
+    m.n < 0 ? 'Failed - view details' : `${m.n} results`);
   c.querySelectorAll('.news-results,.res,.none').forEach(node => node.remove());
   const head = c.querySelector(".head");
   head.innerHTML = (m.n < 0 ? "Search failed" : "Web search") + `<span class="meta">${m.n < 0 ? "" : m.n + " results · "}${m.ms} ms</span>`;
@@ -291,27 +357,40 @@ function cardDone(m) {
   if (!res.length) c.insertAdjacentHTML("beforeend", `<div class="none">${m.n < 0 ? "The search did not answer in time." : "Nothing useful came back."}</div>`);
   for (const r of res) {
     let host = ""; try { host = new URL(r.url).host.replace(/^www\./, ""); } catch (e) {}
-    c.insertAdjacentHTML("beforeend", `<div class="res"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.snippet)}</div><div class="u">${esc(host)}</div></div>`);
+    const row = document.createElement('div'); row.className = 'res';
+    const title = document.createElement('a'); title.className = 't'; title.textContent = r.title || host;
+    try {
+      const url = new URL(r.url);
+      if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) {
+        title.href = url.href; title.target = '_blank'; title.rel = 'noopener noreferrer';
+      }
+    } catch {}
+    const snippet = document.createElement('div'); snippet.className = 's'; snippet.textContent = r.snippet || '';
+    const source = document.createElement('div'); source.className = 'u'; source.textContent = host;
+    row.append(title, snippet, source); c.appendChild(row);
   }
 }
-// tool cards: one per call (drops after 20 s) + a pinned "Memory" card with the session's notes / lists / todos / counters
+// Keep asynchronous agent updates together instead of displaying duplicate outputs.
 const TOOL_TITLE = {claude_code: "Claude", task_status: "Task status", cancel_task: "Task cancelled", reset_chat: "Reset chat", record_note: "Note saved", list_add: "Added to list", todo_add: "To-do added", counter: "Counter",
   stopwatch: "Stopwatch", get_weather: "Weather", unit_convert: "Convert", calculator: "Calculator", dice_roll: "Dice", get_time: "Time"};
 let toolN = 0;
 function cardTool(m) {
-  const c = document.createElement("div"); c.className = "card tool"; const key = "tool" + (++toolN);
+  const c = document.createElement("div"); c.className = "card tool";
   const args = Object.entries(m.args || {}).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join(" · ");
   const r = m.result || {};
+  const key = m.name === 'claude_code' && r.task_id ? 'task:' + r.task_id : 'tool' + (++toolN);
   const res = r.error ? `<div class="none">${esc(r.error)}</div>`
     : `<div class="kv">${Object.entries(r).map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(typeof v === "string" ? v : JSON.stringify(v))}</span>`).join("")}</div>`;
   c.innerHTML = `<div class="head">${esc(TOOL_TITLE[m.name] || m.name)}<span class="meta">${esc(m.name)} · ${m.ms} ms</span></div>` +
     (args ? `<div class="args">${esc(args)}</div>` : "") + res;
-  cards.appendChild(c); cardByTurn[key] = c; setTimeout(() => dropCard(key), 20000);
+  const pending = m.name === 'claude_code' && r.task_id && !('answer' in r) && !('error' in r) && !['done', 'completed', 'cancelled', 'failed'].includes(r.status);
+  presentResult(c, key, TOOL_TITLE[m.name] || m.name,
+    r.error ? 'Failed - view details' : pending ? 'Working' : 'Ready', pending);
   if (["record_note", "list_add", "todo_add", "counter"].includes(m.name)) cardMemory(m.store || {});
 }
 function cardMemory(st) {
   let c = $("memcard");
-  if (!c) { c = document.createElement("div"); c.className = "card mem"; c.id = "memcard"; cards.prepend(c); }
+  if (!c) { c = document.createElement("div"); c.className = "card mem"; c.id = "memcard"; }
   const li = (xs) => xs.map((x) => `<li>${esc(x)}</li>`).join("");
   let h = `<div class="head">Memory<span class="meta">this session</span></div>`;
   if ((st.notes || []).length) h += `<div class="sec">Notes</div><ul>${li(st.notes)}</ul>`;
@@ -320,8 +399,14 @@ function cardMemory(st) {
   const cs = Object.entries(st.counters || {});
   if (cs.length) h += `<div class="sec">Counters</div><div class="kv">${cs.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${v}</span>`).join("")}</div>`;
   c.innerHTML = h;
+  presentResult(c, 'memory', 'Memory', 'Updated');
 }
-function dropCard(turn) { const c = cardByTurn[turn]; if (!c) return; clearTimeout(c.ttl); delete cardByTurn[turn]; c.classList.add("gone"); setTimeout(() => c.remove(), 450); }
+function dropCard(turn) {
+  const c = cardByTurn[turn]; if (!c) return;
+  if (selectedResult === String(turn)) closeDetails();
+  c.activity.remove(); c.remove(); delete cardByTurn[turn];
+  cards.hidden = !cards.children.length;
+}
 
 // ---------------------------------------------------------------- timings log (optional)
 function logTurn(m) {
@@ -368,7 +453,9 @@ function onMessage(ev) {
     case "turn": logTurn(m); break;
     case "duck": if (outGain) outGain.gain.setTargetAtTime(m.gain, playCtx.currentTime, 0.03); break;
     case "error": setState("error"); showBot("error in " + m.where + ": " + m.detail, true); break;
-    case "reset": showBot("(new chat" + (m.instructions ? ": " + m.instructions : "") + ")", false); fadeBotLater(4000); break;   // reset_chat
+    case "reset":
+      for (const key of Object.keys(cardByTurn)) dropCard(key);
+      showBot("(new chat" + (m.instructions ? ": " + m.instructions : "") + ")", false); fadeBotLater(4000); break;
   }
 }
 

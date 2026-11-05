@@ -26,6 +26,9 @@ timing needed to use her in conversation:
   recovery stays quiet; genuine timing failures still show a warning.
 - **Avatar choice:** Astra is the default, with the original orb still available,
   a saved browser preference and an orb fallback if the face cannot load.
+- **Results without covering the face:** compact activity rows open full results
+  in a side panel, or below the avatar on narrow screens. Long captions scroll
+  in their own area. Close details with the close button or Escape.
 
 Speakrail's original authors supplied the conversation controller, training
 work, models and base UI. This fork builds on that work and uses the credited

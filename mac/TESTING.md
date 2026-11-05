@@ -115,6 +115,26 @@ do not substitute for a fresh standalone model-stack or clean-install test.
 Private harness configuration, transcripts and raw test artifacts are not
 part of this repository.
 
+## Results layout checks
+
+From the repository root, run `node mac/test_activity_ui.cjs` after installing
+the browser-test dependencies described above. This serves the bundled UI and
+avatar assets on a temporary loopback port; it does not start models, access a
+microphone, or call a search service.
+
+Synthetic events exercise long agent answers, weather results, grouped news,
+failed tools, session notes, and reset. The checks cover desktop, portrait mobile
+and landscape layouts, canvas pixels and animation, caption and panel scrolling,
+Escape and focus restoration, safe source links, and the 12-entry activity limit.
+Screenshots and a report go to the ignored `mac/activity-ui-results/` directory.
+The existing visualizer test also checks grouped news in the new details panel.
+
+On 5 November 2026, both browser suites passed at 1440x900, 390x844 and 844x390.
+The generated screenshots were inspected locally. The 32 Python tests, three
+mocked launcher checks and seven JavaScript animation/timeline tests also passed.
+
+These UI tests do not establish live agent or research performance.
+
 ## What remains untested
 
 Long conversations, noisy microphones, room echo, other languages, smaller

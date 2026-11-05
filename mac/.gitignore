@@ -20,6 +20,7 @@ package-lock.json
 *.png
 *-results.json
 *-events.json
+activity-ui-results/
 gemma-probe.json
 architecture-parity.json
 asr-mac-config.json

@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Speakrail</title>
-<link rel="stylesheet" href="static/live.css">
+<link rel="stylesheet" href="static/live.css?v=activity-layout-20261105">
 </head>
 <body>
 <div class="top-bar"></div>
@@ -45,24 +45,32 @@
   </div>
 </header>
 
+<div id="cards" class="activity-list" aria-label="Activity and results" hidden></div>
 <main>
+ <section class="voice-pane" aria-label="Astra">
+  <div class="avatar-view">
   <canvas id="blob" role="img" aria-label="Voice activity visualization"></canvas>
   <div id="avatar-notice" class="avatar-notice" role="status" hidden></div>
-  <div id="cards" class="cards"></div>
   <div class="center-ui">
     <button id="go" class="start">Allow microphone &amp; start</button>
   </div>
-  <div class="subs">
+  </div>
+  <div class="subs" aria-label="Conversation captions" tabindex="0">
     <div id="user" class="sub user"></div>
     <div id="bot" class="sub bot"></div>
   </div>
+ </section>
+ <aside id="result-panel" aria-labelledby="result-title" hidden>
+   <div class="result-toolbar"><h2 id="result-title">Details</h2><button id="close-details" class="chip" title="Close details (Escape)" aria-label="Close details">&#215;</button></div>
+   <div id="result-content" tabindex="0"></div>
+ </aside>
   <div id="log" class="log" hidden></div>
 </main>
 
 <script type="importmap">{"imports":{"three":"./static/vendor/three/three.module.js"}}</script>
 <script src="static/avatar-motion.js?v=listening-neutral-20261016"></script>
-<script src="static/mesh-avatar.js?v=hair-depth-20261016"></script>
+<script src="static/mesh-avatar.js?v=activity-layout-20261105"></script>
 <script src="static/lip-sync-timeline.js"></script>
-<script src="static/live.js?v=astra-pace-20261016"></script>
+<script src="static/live.js?v=activity-layout-20261105"></script>
 </body>
 </html>

@@ -238,7 +238,7 @@
       }
     }
 
-    draw(ctx, t, w, h, { state = "idle", mouthWeights = null, previewPose = null } = {}) {
+    draw(ctx, t, w, h, { state = "idle", mouthWeights = null, previewPose = null, bottomInset = 165 } = {}) {
       if (!this.ready) return false;
       this.resetMouth();
       const speaking = state === "speaking" && mouthWeights && previewPose == null;
@@ -290,7 +290,7 @@
         this.head.rotateY(motion.yaw * .8);
         this.head.rotateZ(motion.roll);
       }
-      const height = Math.max(80, Math.min(700, h - 185));
+      const height = Math.max(80, Math.min(700, h - 20 - bottomInset));
       const width = Math.min(w, 900);
       if (width !== this.renderWidth || height !== this.renderHeight) {
         this.renderer.setSize(width, height, false);

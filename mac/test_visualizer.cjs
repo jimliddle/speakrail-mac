@@ -153,19 +153,21 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
             groups, results: groups.flatMap(g => g.results)});
         }, groups);
         assert.equal(await page.locator('.news-card').count(), 1);
+        await page.locator('.activity-row button').first().click();
         assert.deepEqual(await page.locator('.news-results h3').allTextContents(),
           [`UK: ${count} of ${requested}`, `US: ${count} of ${requested}`]);
         assert.deepEqual(await page.locator('.news-results [data-brief-id]').evaluateAll(nodes => nodes.map(n => n.dataset.briefId)),
           groups.flatMap(g => g.results.map(r => r.brief_id)));
-        const bounds = await page.locator('.news-card').boundingBox();
+        const bounds = await page.locator('#result-panel').boundingBox();
         const button = await page.locator('#go').boundingBox();
-        assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1);
+        assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1);
         assert(bounds.x + bounds.width <= button.x || bounds.x >= button.x + button.width ||
           bounds.y + bounds.height <= button.y || bounds.y >= button.y + button.height, 'News card must not cover Start');
-        await page.locator('.news-results').evaluate(node => node.scrollTop = node.scrollHeight);
-        assert(await page.locator('.news-results').evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop < 2));
-        await page.locator('.news-results').evaluate(node => node.scrollTop = 0);
-        await page.screenshot({path: path.join(__dirname, `news-card-${width}-${count}-of-${requested}.png`)});
+        await page.locator('#result-content').evaluate(node => node.scrollTop = node.scrollHeight);
+        assert(await page.locator('#result-content').evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop < 2));
+        await page.locator('#result-content').evaluate(node => node.scrollTop = 0);
+        await page.screenshot({path: path.join(__dirname, `news-card-${width}-${count}-of-${requested}.png`), fullPage: true});
+        await page.locator('#close-details').click();
       }
     }
     report.checked.push('regional cards: complete/partial counts, same-turn replacement, scroll access and Start-button clearance');
