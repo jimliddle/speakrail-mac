@@ -1,5 +1,12 @@
 # Local configuration and secrets
 .env
+# Personal memory and access state must never be committed.
+memory/
+memories/
+persona.md
+profile.md
+.local-speakrail/
+artifacts/
 *.key
 *_key
 

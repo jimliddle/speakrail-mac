@@ -2,6 +2,9 @@
 import argparse
 import asyncio
 import json
+import os
+from pathlib import Path
+import secrets
 import signal
 import socket
 import subprocess
@@ -12,7 +15,7 @@ import aiohttp
 from test_speech import ROOT, VOICE, Services, free_port, pcm16, ready, start_asr, start_tts
 
 
-async def start_stack(services, ui_port, persona="astra", conversation_only=False):
+async def start_stack(services, ui_port, persona="astra", conversation_only=False, memory_dir="", memory_key=""):
     # Refuse a busy UI port before allocating model memory.
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", ui_port))
@@ -26,16 +29,19 @@ async def start_stack(services, ui_port, persona="astra", conversation_only=Fals
     print("Conversation model ready", flush=True)
     # The local completion server has no chat endpoint for background notes.
     trial_options = ["--no-notes"] + (["--no-tools"] if conversation_only else [])
+    if memory_dir:
+        trial_options += ['--memory-dir', memory_dir]
     process = services.start("voice-ui", [ROOT / ".venv/bin/python", ROOT / "mac_ui.py",
                                           "--host", "127.0.0.1", "--port", ui_port,
                                           "--persona", persona, *trial_options,
                                           "--voice", VOICE, "--no-phrase-cache", "--search", "off",
-                                          "--sessions-dir", ""], extra_env={
+                                          "--sessions-dir", ""], private_log=bool(memory_dir), extra_env={
         "ASR_URL": f"ws://127.0.0.1:{asr}/v1/transcribe",
         "TTS_URL": f"http://127.0.0.1:{tts}/v1/audio/speech",
         "LLM_URL": f"http://127.0.0.1:{llm}/v1/completions",
         "LLM_LORA": "speakrail", "LLM_BASE_MODEL": "speakrail-base",
         "SPEAKRAIL_TOKENIZER_DIR": str(ROOT / "tokenizer"), "SPEAKRAIL_CACHE_SESSION": "1",
+        "SPEAKRAIL_MEMORY_KEY": memory_key,
         "NOTES": "1", "INTERJECT": "1", "SESSIONS_DIR": ""})
     await ready(process, ui_port, "/", timeout=90)
     return {"ui": ui_port, "asr": asr, "tts": tts, "llm": llm}
@@ -133,8 +139,10 @@ async def main(args):
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stopped.set)
     try:
-        ports = await start_stack(services, args.port, args.persona, args.conversation_only)
-        print(f"Speakrail Mac prototype: http://127.0.0.1:{ports['ui']}/", flush=True)
+        memory_key = secrets.token_urlsafe(32) if args.memory_dir else ''
+        ports = await start_stack(services, args.port, args.persona, args.conversation_only, args.memory_dir, memory_key)
+        fragment = '#memory-key=' + memory_key if memory_key else ''
+        print(f"Speakrail Mac prototype: http://127.0.0.1:{ports['ui']}/{fragment}", flush=True)
         print("Local models only. Search/Claude tools/recording off. Ctrl-C stops this stack.", flush=True)
         if args.test:
             await probe(ports["ui"])
@@ -157,4 +165,15 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--persona", choices=["nova", "astra"], default="astra")
     parser.add_argument("--conversation-only", action="store_true", help="no tools or optional listening-notes model")
-    asyncio.run(main(parser.parse_args()))
+    parser.add_argument('--memory-dir', nargs='?', const=str(Path.home() / 'Library/Application Support/Speakrail/memory'),
+                        default='', help='enable memory (optional directory; default is outside the checkout)')
+    args = parser.parse_args()
+    if args.memory_dir:
+        args.memory_dir = str(Path(args.memory_dir).expanduser().absolute())
+        if args.conversation_only or args.test:
+            parser.error('Memory cannot be combined with --conversation-only or the non-memory --test probe.')
+        if Path(args.memory_dir).resolve().is_relative_to(ROOT.parent.resolve()):
+            parser.error('Choose a memory directory outside the repository.')
+        if os.environ.get('FIREWORKS_API_KEY'):
+            parser.error('Unset FIREWORKS_API_KEY before running the local-only memory profile.')
+    asyncio.run(main(args))

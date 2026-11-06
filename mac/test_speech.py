@@ -28,13 +28,18 @@ class Services:
     def __init__(self):
         self.children = []
 
-    def start(self, name, command, cwd=ROOT, extra_env=None):
+    def start(self, name, command, cwd=ROOT, extra_env=None, private_log=False):
         env = {k: v for k, v in os.environ.items()
                if not any(s in k.upper() for s in ("TOKEN", "API_KEY", "SECRET"))}
         env.update(HF_HOME=str(ROOT / "hf-home"), HF_HUB_OFFLINE="1",
                    TRANSFORMERS_OFFLINE="1", MLX_ENABLE_TF32="0", PYTHONUNBUFFERED="1")
         env.update(extra_env or {})
-        log = open(ROOT / f"{name}.log", "w")
+        if private_log:
+            fd = os.open(ROOT / f'{name}.log', os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+            os.fchmod(fd, 0o600)
+            log = os.fdopen(fd, 'w')
+        else:
+            log = open(ROOT / f"{name}.log", "w")
         process = subprocess.Popen([str(x) for x in command], cwd=cwd, env=env,
                                    stdout=log, stderr=subprocess.STDOUT)
         self.children.append((process, log))

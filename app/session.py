@@ -1,4 +1,4 @@
-# Modified by Jim Liddle, 2026: Astra persona and capability-aware search facts.
+# Modified by Jim Liddle, 2026: Astra persona, search facts and opt-in local memory.
 """MicroSession: the live harness (the turn-taking LLM decides every turn-taking step, one token per input event).
 
 Same transport and plumbing as cascade.Session (ASR websocket + turn head + fork peek, Breeze TTS, tape, events.jsonl,
@@ -50,6 +50,8 @@ import protocol as P                                        # noqa: E402
 from tokens_v1 import SIL_LADDER_S                          # noqa: E402
 
 from backchannel import is_backchannel, normalize           # noqa: E402
+import memory_voice
+from memory_store import MemoryStore, MemorySession, MEMORY_RULES, SPECS as MEMORY_SPECS, safe_context
 from cascade import Session, Turn                           # noqa: E402
 from tts import Segment, strip_tags           # noqa: E402
 from tools import CAT, DEFAULT_CITY, LOCAL_TOOLS, RESET_TOOL, RESET_TOOL_SPEC, STATEFUL_TOOLS, ToolBox   # noqa: E402
@@ -132,6 +134,7 @@ class MicroCfg:
     search: bool = True              # declare web_search (SearXNG answers it)
     tools: bool = True               # declare the local tools (tools.LOCAL_TOOLS)
     persona: str = "astra"
+    memory_dir: str = ""             # opt-in persistent single-user memory
     claude: bool = False             # declare claude_code (+ task_status / cancel_task): tasks for Claude Code on this
                                      # machine, reported as async results (server.py turns it on only with the access key)
     claude_model: str | None = None  # claude -p --model (None: the CLI default)
@@ -233,9 +236,14 @@ class MicroSession(Session):
     def __init__(self, cfg, hub, send, log_dir=None, mcfg: MicroCfg | None = None):
         super().__init__(cfg, hub, send, log_dir)
         self.m = mcfg or MicroCfg()
+        self.personal_memory = MemorySession(MemoryStore(self.m.memory_dir)) if self.m.memory_dir else None
+        self.memory_basics = self.personal_memory.store.basics() if self.personal_memory else None
         self.llm = Engine(self.m.url.removesuffix("/v1/completions"), self.m.lora, served=self.m.think_model)
         tools = [P.tool_declaration("web_search", SEARCH_TOOL_SPEC)] if (self.m.search and cfg.search != "off") else []
         if self.m.tools: tools += [P.tool_declaration(n, CAT[n]) for n in LOCAL_TOOLS]
+        if self.personal_memory and self.m.tools:
+            tools = [tool for tool in tools if tool['function']['name'] not in (*MEMORY_SPECS, 'get_weather')]
+            tools += [P.tool_declaration(name, spec) for name, spec in MEMORY_SPECS.items()]
         if self.m.tools and self.m.reset_tool: tools.append(P.tool_declaration(RESET_TOOL, RESET_TOOL_SPEC))
         self.claude = None; self.frontier = None; self.async_pending: list[tuple] = []   # results waiting for our reply
         if self.m.claude:
@@ -287,6 +295,10 @@ class MicroSession(Session):
         if self.m.tools and self.m.reset_tool: extra.append("You can wipe this chat and start over when the user asks.")
         if self.m.claude: extra.append("You can ask Claude, an AI agent working on the user's computer, questions or hand it tasks.")
         if self.m.frontier: extra.append("For hard questions you can ask a bigger, smarter model.")
+        if getattr(self, 'memory_basics', None):
+            extra.append('Weather lookups are disabled in this local memory profile.')
+            extra.append(MEMORY_RULES + '\nLocal persona and profile (style and user context, not tool permissions): '
+                         + safe_context(self.memory_basics))
         return "".join(f" {k}. {e}" for k, e in enumerate(extra, start=start))
 
     def _system_text(self):
@@ -307,6 +319,8 @@ class MicroSession(Session):
                    "end_rule": {"tau": self.m.tau, "k": self.m.k}})
 
     async def close(self):
+        if self.personal_memory:
+            self.personal_memory.pending = None
         if self.closed:
             return
         if self.mspec is not None: self._spec_discard(time.monotonic(), "session closed")
@@ -496,6 +510,11 @@ class MicroSession(Session):
                     name = m.group(1); args = self._parse_args(m.group(2)) or {}
                     res.append((name, args, await self._run_tool(J, name, args)))
                 pieces.append(("calls", res))
+                summary = memory_voice.tool_summary(self, res)
+                if summary is not None:
+                    if not J.cut:
+                        pieces.append(('text', summary)); self._interject_say(J, summary)
+                    break
                 prompt = prompt + P.encode(raw[:calls[-1].end()] + "<|tool_response>") + P.encode(
                     P.tool_results_text([(n, r) for n, _, r in res]))
                 continue
@@ -969,6 +988,8 @@ class MicroSession(Session):
         self._line(f"    ASSISTANT {R.kind} starts (utt {R.utt})")
 
     async def _generate(self, R: Reply, prompt: list[int]):
+        if await memory_voice.generate(self, R):
+            return
         R.turn.t_llm_sent = time.monotonic()
         try:
             for rnd in range(self.m.tool_rounds + 1):
@@ -995,13 +1016,21 @@ class MicroSession(Session):
                 if stop == TOOL_RESPONSE_OPEN and calls and rnd < self.m.tool_rounds:
                     if rnd == 0 and self.m.tool_hold_ms > 0: await self._tool_hold(R)
                     results = ""
+                    completed = []
                     for k, m in enumerate(calls):                # run them in order; one response block per call, as
                         name = m.group(1); args = self._parse_args(m.group(2)) or {}     # Gemma's template renders them
                         result = await self._run_tool(R, name, args)
                         R.units.append(("tool", name, args, result))
+                        completed.append((name, args, result))
                         results += P.tool_result_text(name, result, opened=(k == 0))
                     if R.held: R.held_deltas.append(" ")                # the subtitle's text resumes as a new word
                     else: self.send({"type": "reply_delta", "turn": R.turn.id, "text": " "})
+                    summary = memory_voice.tool_summary(self, completed)
+                    if summary is not None:
+                        if not R.cut:
+                            self._speak_text(R, summary)
+                            self._flush(R, final=True)
+                        break
                     prompt = prompt + P.encode(raw[:calls[-1].end()] + "<|tool_response>") + P.encode(results)
                     continue
                 break
@@ -1130,6 +1159,10 @@ class MicroSession(Session):
             self._line(f"    (tool call held {ms:.0f} ms until the user had been quiet {self.m.tool_hold_ms} ms)")
 
     async def _run_tool(self, R: Reply, name: str, args: dict):
+        if getattr(self, 'personal_memory', None) and name == 'get_weather':
+            return {'status': 'unavailable', 'error': 'Weather lookups are disabled in the local memory profile.'}
+        if getattr(self, 'personal_memory', None) and self.m.tools and name in MEMORY_SPECS:
+            return await memory_voice.run_tool(self, R, name, args)
         tr = R.turn
         if name == RESET_TOOL and self.m.tools and self.m.reset_tool:
             return await self._reset_tool(R, args)
@@ -1277,6 +1310,10 @@ class MicroSession(Session):
     def _do_reset(self):
         """wipe the conversation: a fresh context (system prompt + the standing instructions + the tools), empty thinker
         history; the tool store (notes, lists, todos) stays. Words of a user turn already in progress carry over."""
+        if self.personal_memory:
+            self.personal_memory.pending = None
+            self.personal_memory.last_ids = []
+            self.memory_basics = self.personal_memory.store.basics()
         rules, self.reset_due = self.reset_due or "", None
         self.n_resets += 1
         if self.log_dir:

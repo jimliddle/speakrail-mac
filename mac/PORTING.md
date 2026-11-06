@@ -20,17 +20,24 @@ assistant or replacement training effort.
 - `setup.py`, `sources.json`, dependency snapshots and fetch scripts:
   reproducible pinned inputs without committing models or installed libraries.
 - Real-model and browser probes: documented separately in `TESTING.md`.
+- `app/memory_store.py`, `memory_voice.py`, `memory_web.py` and the memory editor:
+  optional single-user text memory, confirmed voice changes, bounded recall,
+  revision checks and authenticated loopback access. No private harness code,
+  personal files or extra model dependencies are required.
 
 ## Modified Upstream Files
 
 - `app/llm_engine.py`: per-Engine random session salt, only when
   `SPEAKRAIL_CACHE_SESSION=1`; unchanged behaviour without that flag.
 - `app/web/live/index.html`: search selector reflects the Mac launcher's
-  disabled general web search. Weather is a distinct tool and remains enabled.
+  disabled general web search. Weather remains enabled except in the opt-in
+  memory profile.
 - `app/web/live/live.js`: disabled search persistence; ignore late messages
   after Stop, close the socket/audio contexts, protect against an old socket
   closing a newly started session.
 - `app/web/live/live.css`: wrap active controls on narrow screens.
+- `app/session.py` and `app/server.py`: Astra identity and optional memory hooks,
+  including speculative-turn handling and the editor API.
 - Original README moved to `README.upstream.md` and labelled as NVIDIA
   instructions; new README covers this fork. Original licence retained;
   NOTICE extended without removing upstream notices.
@@ -45,7 +52,7 @@ its original non-commercial terms, not relicensed as Apache source code.
 This checkpoint predates personal-harness integration. The Mac launcher does
 not enable Claude Bridge or a hosted frontier model, and it strips inherited
 API-key/token/secret environment variables from service subprocesses.
-That is not a network sandbox: weather and Google Fonts can access the
+That is not a network sandbox: weather (outside memory mode) and Google Fonts can access the
 internet. No claim of complete offline operation is made.
 
 Apple Silicon inference is experimental. Long-session reliability,

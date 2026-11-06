@@ -135,7 +135,47 @@ mocked launcher checks and seven JavaScript animation/timeline tests also passed
 
 These UI tests do not establish live agent or research performance.
 
-## What remains untested
+## Local memory: 6 November 2026
+
+The standalone publication checks passed with synthetic data:
+
+- 52 Python tests under `tests/`, including 20 memory tests. They cover storage
+  permissions, revisions, size limits, expiry, confirmation, authenticated API
+  access, Host/Origin checks, session exclusion, reset and speculative replies.
+- Five mocked launcher checks, including opt-in forwarding and owner-only
+  access-key logs. They do not start inference services.
+- Seven existing JavaScript animation and speech-timing checks.
+- The real standalone server in stub mode, tested through Chromium: access
+  cookie, editor layout at three viewport sizes, save/edit/delete, persistence
+  after server restart, and read-only editing while a voice session is active.
+- The existing avatar/results browser test, with synthetic tool output.
+- All 24 existing model-free conversation-controller scenarios passed their
+  assertions with memory off. That older fixture emitted pending-task cleanup
+  warnings; this is not a clean shutdown or long-session reliability result.
+
+From the repository root, after installing the existing Mac test dependencies:
+
+```sh
+mac/.venv/bin/python -B -m unittest discover -s tests -p 'test_*.py'
+mac/.venv/bin/python -B -m unittest discover -s mac -p test_avatar_launcher.py
+PYTHON="$PWD/mac/.venv/bin/python" node tests/test_memory_ui.cjs
+node mac/test_activity_ui.cjs
+mac/.venv/bin/python tests/test_session.py
+```
+
+The memory browser test starts and stops its own model-free server, uses a
+temporary memory directory, blocks external browser requests and removes the
+test files. Screenshots go to ignored `artifacts/memory-ui/`. It never reads
+an existing user's memory directory or opens a physical microphone.
+
+Before the standalone port, a separate local integration passed synthetic
+speech save/confirm, close/reopen, recall, update/confirm and delete/confirm
+through the actual ASR and TTS stack. The public session tests exercise the
+ported handlers without model calls. A fresh full-model standalone memory
+run, clean installation, other accents and long sessions remain untested.
+No private recordings, notes, paths or harness configuration are published.
+
+## Remaining Checks
 
 Long conversations, noisy microphones, room echo, other languages, smaller
 Macs, simultaneous agent workloads and the Claude Bridge through this Mac

@@ -29,6 +29,9 @@ timing needed to use her in conversation:
 - **Results without covering the face:** compact activity rows open full results
   in a side panel, or below the avatar on narrow screens. Long captions scroll
   in their own area. Close details with the close button or Escape.
+- **Optional local memory:** editable persona and profile files, saved notes,
+  spoken recall, and confirmed updates or deletion. Memory is off by default;
+  personal files stay outside the repository.
 
 Speakrail's original authors supplied the conversation controller, training
 work, models and base UI. This fork builds on that work and uses the credited
@@ -139,6 +142,23 @@ To try the avatar and greeting without loading the conversation models, run
 not accept microphone input. The normal launcher uses Astra's name; pass
 `--persona nova` to retain the original conversation persona.
 
+## Optional Memory
+
+Start with `./mac/start-voice-prototype --memory-dir` to enable single-user
+memory. Open the full launch link printed in Terminal, including its access
+fragment. **Settings > Memory** opens the persona, profile and note editor.
+
+Say "Remember that I prefer short answers", then "Confirm memory change".
+After restarting the voice session, try "Check your memories about my preferred
+answers". Notes are readable local text, not a transcript archive. Conversation
+content is not saved automatically. Voice-requested updates and deletion also
+need confirmation. There is no account system, PIN or speaker identification.
+
+This first standalone memory profile disables web search, weather and hosted
+agent tools. It does not include the private Qwen/RAG integration. The normal
+launcher without `--memory-dir` keeps its existing behaviour.
+See [memory setup, privacy and limits](docs/MEMORY.md).
+
 ## Architecture
 
 | Component | Native Mac path |
@@ -155,7 +175,8 @@ uses greedy sampling, and is not a general purpose vLLM replacement.
 Pre rendered phrase caching is disabled.
 Optional background listening notes are also disabled: the local completion
 server does not expose the separate chat endpoint they need. Conversation
-history and the explicit note/list tools remain available.
+history and the explicit note/list tools remain available. Without opt-in
+memory, those tools remain session-only.
 
 ## Local Inference, Not Network Isolated
 

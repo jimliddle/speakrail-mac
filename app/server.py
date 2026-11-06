@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Modified by Jim Liddle, 2026: Astra preview, phoneme timing and speech pacing.
+# Modified by Jim Liddle, 2026: Astra preview, speech timing and opt-in memory access.
 """Speakrail web server (aiohttp).
 
     /                the voice UI (web/live)
@@ -28,11 +28,17 @@ ROOT = os.path.dirname(HERE)
 HUB = None
 ARGS = None
 ALIGNMENT = None
+MEMORY = None
 PREVIEW_CACHE = web.AppKey("avatar_preview_cache", dict)
 
 
 def page(path):
     async def handler(_):
+        if path == 'live/index.html' and MEMORY is not None:
+            with open(os.path.join(HERE, 'web', path)) as source:
+                html = source.read().replace('</body>', '<script src="/static/memory.js"></script></body>')
+            return web.Response(text=html, content_type='text/html',
+                                headers={'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'})
         if path == "live/index.html" and getattr(ARGS, "preview_only", False):
             with open(os.path.join(HERE, "web", path)) as source:
                 conversation = escape(getattr(ARGS, "conversation_url", ""), quote=True)
@@ -63,7 +69,7 @@ def micro_cfg(q, cfg):
     key_ok = check_key(q.get("ck"))
     return MicroCfg(url=ARGS.mt_url, lora=os.environ.get("LLM_LORA", "speakrail"),
                     think_model=os.environ.get("LLM_BASE_MODEL", "speakrail-base"), undo_words=ARGS.undo_words, tool_hold_ms=ARGS.tool_hold_ms,
-                    persona=ARGS.persona, tools=not ARGS.no_tools,
+                    persona=ARGS.persona, tools=not ARGS.no_tools, memory_dir=getattr(ARGS, 'memory_dir', ''),
                     allow_interject=not ARGS.no_interject, silence_fallback_ms=cfg.silence_ms,
                     notes=ARGS.notes, phrase_cache=not ARGS.no_phrase_cache, safety_yield_s=ARGS.safety_yield_s,
                     claude=bool(ARGS.claude and key_ok), claude_model=ARGS.claude_model or None,
@@ -118,10 +124,13 @@ async def ws_handler(request):
             sess = MicroSession(cfg, HUB, send, log_dir=log_dir, mcfg=mcfg)
             if q.get("lipsync") == "phoneme":
                 send({"type": "lip_sync_status", "available": False})
+    if MEMORY is not None:
+        MEMORY.session = getattr(sess, 'personal_memory', None)
     try:
         await sess.start()
     except Exception as e:
         send({"type": "error", "where": "asr connect", "detail": repr(e)})
+        await sess.close()
         send(None)
         await wtask
         await ws.close()
@@ -167,7 +176,8 @@ async def on_startup(app):
         from cascade import TTSHub
         HUB = TTSHub(asyncio.get_running_loop(), ARGS.voice)
         await HUB.wait_ready()
-    print(f"speakrail{' (stub mode, no models)' if ARGS.stub else ''}: open http://{ARGS.host}:{ARGS.port}/", flush=True)
+    url = MEMORY.url if MEMORY else f'http://{ARGS.host}:{ARGS.port}/'
+    print(f"speakrail{' (stub mode, no models)' if ARGS.stub else ''}: open {url}", flush=True)
 
 
 def alignment_service():
@@ -221,7 +231,7 @@ def env_int(name, default):
 
 
 def main():
-    global ARGS
+    global ARGS, MEMORY
     ap = argparse.ArgumentParser()
     ap.add_argument("--stub", action="store_true", help="no models: fake ASR / turn head / LLM / TTS, to try the UI")
     ap.add_argument("--preview-only", action="store_true", help="sample playback only; no microphone sessions or models")
@@ -230,6 +240,7 @@ def main():
     ap.add_argument("--host", default=os.environ.get("UI_HOST", "127.0.0.1"))
     ap.add_argument("--voice", default=os.environ.get("VOICE", ""), help="Breeze reference wav; its transcript sits next to it as .txt")
     ap.add_argument("--persona", default=os.environ.get("PERSONA", "astra"), choices=["nova", "astra"])
+    ap.add_argument('--memory-dir', default='', help='opt-in local memory directory outside the checkout (off by default)')
     ap.add_argument("--sessions-dir", default=os.environ.get("SESSIONS_DIR", ""),
                     help="save each session's event log, context and audio recording here ('' = off, the default)")
     # turn taking
@@ -264,7 +275,15 @@ def main():
         ARGS.stub = True
     if not ARGS.stub and not ARGS.voice:
         ap.error("--voice (or VOICE) is required unless --stub")
+    from memory_web import MemoryAccess, validate_options
+    try:
+        validate_options(ARGS)
+        MEMORY = MemoryAccess(ARGS.memory_dir, ARGS.port, os.environ.get('SPEAKRAIL_MEMORY_KEY')) if ARGS.memory_dir else None
+    except ValueError as error:
+        ap.error(str(error))
     app = web.Application()
+    if MEMORY:
+        MEMORY.install(app)
     app[PREVIEW_CACHE] = {}
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

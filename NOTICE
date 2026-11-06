@@ -73,6 +73,8 @@ Unofficial Apple Silicon port
 
 Mac serving adaptation and additions: Copyright 2026 Jim Liddle.
 Apache License 2.0 for source changes; see mac/PORTING.md for modified files.
+The optional local-memory store, voice commands and editor are part of these
+source additions. No personal memory files or additional model weights ship.
 This fork is not endorsed by the original Speakrail authors.
 
 The Mac port additionally installs, but does not vendor:

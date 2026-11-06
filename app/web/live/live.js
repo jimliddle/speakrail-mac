@@ -385,8 +385,8 @@ function cardTool(m) {
     (args ? `<div class="args">${esc(args)}</div>` : "") + res;
   const pending = m.name === 'claude_code' && r.task_id && !('answer' in r) && !('error' in r) && !['done', 'completed', 'cancelled', 'failed'].includes(r.status);
   presentResult(c, key, TOOL_TITLE[m.name] || m.name,
-    r.error ? 'Failed - view details' : pending ? 'Working' : 'Ready', pending);
-  if (["record_note", "list_add", "todo_add", "counter"].includes(m.name)) cardMemory(m.store || {});
+    r.error ? 'Failed - view details' : r.pending ? 'Awaiting confirmation' : pending ? 'Working' : 'Ready', pending);
+  if (["record_note", "list_add", "todo_add", "counter"].includes(m.name) && !r.pending && m.store?.notes) cardMemory(m.store);
 }
 function cardMemory(st) {
   let c = $("memcard");
