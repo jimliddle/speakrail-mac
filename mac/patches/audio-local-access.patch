@@ -1,0 +1,97 @@
+diff --git a/app/server/http.cpp b/app/server/http.cpp
+index b8b9c91..c0d08d3 100644
+--- a/app/server/http.cpp
++++ b/app/server/http.cpp
+@@ -1,4 +1,5 @@
+ #include "http.h"
++#include "local_access.h"
+ 
+ #include "engine/framework/io/json.h"
+ 
+@@ -44,6 +45,11 @@ constexpr SocketHandle kInvalidSocket = -1;
+ namespace minitts::server {
+ namespace {
+ 
++class LocalAccessDenied : public std::runtime_error {
++public:
++    LocalAccessDenied() : std::runtime_error("Local controller request required") {}
++};
++
+ std::string lower_ascii(std::string value) {
+     for (char & ch : value) {
+         ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+@@ -68,6 +74,8 @@ const char * status_text(int status) noexcept {
+         return "OK";
+     case 400:
+         return "Bad Request";
++    case 403:
++        return "Forbidden";
+     case 404:
+         return "Not Found";
+     case 405:
+@@ -571,6 +579,8 @@ HttpRequest read_http_request(
+         }
+         const std::string name = lower_ascii(trim(line.substr(0, pos)));
+         const std::string value = trim(line.substr(pos + 1));
++        if ((name == "host" || name == "origin" || name == "x-speakrail-client") &&
++            request.headers.count(name)) throw LocalAccessDenied();
+         // Repeated field lines are equivalent to one comma-separated list (RFC 9110
+         // 5.2), and for Transfer-Encoding that equivalence is load-bearing: splitting
+         // "gzip, chunked" across two lines would otherwise overwrite the first with
+@@ -591,6 +601,18 @@ HttpRequest read_http_request(
+         request.headers[name] = value;
+     }
+ 
++    // Reject before reading an upload, creating a live stream, or taking a model lock.
++    sockaddr_in local{};
++#ifdef _WIN32
++    int local_size = sizeof(local);
++#else
++    socklen_t local_size = sizeof(local);
++#endif
++    if (getsockname(socket, reinterpret_cast<sockaddr *>(&local), &local_size) != 0 ||
++        !local_controller_request(request.headers, ntohs(local.sin_port), request.method, request.path)) {
++        throw LocalAccessDenied();
++    }
++
+     if (wants_incremental_body(request)) {
+         leftover = data.substr(header_end + 4);
+         return request;
+@@ -778,6 +800,10 @@ void handle_client(SocketHandle client, IHttpHandler & handler, uint64_t max_req
+         } else {
+             send_all(socket.get(), serialize_response(response));
+         }
++    } catch (const LocalAccessDenied & ex) {
++        try {
++            send_all(socket.get(), serialize_response(error_response(403, ex.what(), "forbidden")));
++        } catch (...) {}
+     } catch (const std::exception & ex) {
+         try {
+             send_all(socket.get(), serialize_response(error_response(500, ex.what(), "server_error")));
+diff --git a/app/server/local_access.h b/app/server/local_access.h
+new file mode 100644
+--- /dev/null
++++ b/app/server/local_access.h
+@@ -0,0 +1,22 @@
++#pragma once
++#include <unordered_map>
++#include <string>
++#include <string_view>
++
++namespace minitts::server {
++// Local controller protocol, not a credential. Browser requests cannot supply
++// this non-simple header without a preflight, which this policy also rejects.
++inline bool local_controller_request(const std::unordered_map<std::string, std::string> & headers,
++                                     unsigned port, std::string_view method, std::string_view path) {
++    const auto host = headers.find("host");
++    const auto suffix = ":" + std::to_string(port);
++    if (host == headers.end() || (host->second != "127.0.0.1" + suffix &&
++        host->second != "localhost" + suffix && host->second != "[::1]" + suffix)) return false;
++    for (const auto & [name, value] : headers) {
++        if (name == "origin" || name.rfind("sec-fetch-", 0) == 0) return false;
++    }
++    if ((method == "GET" || method == "HEAD") && path == "/health") return true;
++    const auto marker = headers.find("x-speakrail-client");
++    return method != "OPTIONS" && marker != headers.end() && marker->second == "local-controller";
++}
++}

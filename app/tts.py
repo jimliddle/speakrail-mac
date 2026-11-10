@@ -84,7 +84,8 @@ class BreezeWorker(threading.Thread):
             data["instruction"] = self.instruction
         files = {"ref_audio": ("ref.wav", self.ref_bytes, "audio/wav")}
         for _ in range(75):                               # 409 = the request we just killed is still releasing (~20-50 ms)
-            r = requests.post(self.url, data=data, files=files, stream=True, timeout=(5, 60))
+            r = requests.post(self.url, data=data, files=files, stream=True, timeout=(5, 60),
+                              headers={"X-Speakrail-Client": "local-controller"})
             if r.status_code != 409 or seg.utt in self.killed_utts:
                 break
             r.close(); time.sleep(0.02)

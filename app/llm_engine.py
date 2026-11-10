@@ -30,7 +30,7 @@ class Engine:
         return self.served if self.lora is None else self.lora
 
     async def _post(self, http, url, body):
-        async with http.post(url, json=body) as r:
+        async with http.post(url, json=body, headers={"X-Speakrail-Client": "local-controller"}) as r:
             if r.status != 200:
                 raise RuntimeError(f"vllm {r.status}: {(await r.text())[:300]}")
             return await r.json()
@@ -80,7 +80,7 @@ class Stream:
 
     async def __aiter__(self):
         e = self.eng
-        async with self.http.post(e.url, json=self.body) as r:
+        async with self.http.post(e.url, json=self.body, headers={"X-Speakrail-Client": "local-controller"}) as r:
             if r.status != 200:
                 raise RuntimeError(f"vllm {r.status}: {(await r.text())[:300]}")
             async for line in r.content:

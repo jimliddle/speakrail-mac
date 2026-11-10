@@ -22,6 +22,11 @@ The original root `NOTICE` remains authoritative for upstream attributions.
 | MPFB avatar (`mpfb.glb`) | CC0, per the pinned TalkingHead README; created with Blender and MPFB; see asset README and bundled CC0 text |
 | Three.js 0.180.0, GLTFLoader and BufferGeometryUtils | MIT; unmodified runtime files and licence in `app/web/live/vendor/three` |
 
+`patches/audio-local-access.patch` modifies the pinned audio.cpp HTTP parser and
+adds its local-controller check. Upstream copyright is 2026 ShugoAI LLC,
+Apache-2.0. The dependency's LICENSE and notices remain in its source checkout;
+the patch does not change its model or bundled dependency terms.
+
 The included `licenses/BREEZE-MODEL-LICENSE.txt` is an unmodified copy from
 the tested model snapshot. It restricts commercial deployment and generated
 audio usage, not merely resale of the weights. Obtain a separate licence

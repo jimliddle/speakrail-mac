@@ -126,6 +126,12 @@ its commands without making changes with `./mac/setup-mac --plan`.
 The installer has not yet been tested on a second, clean Mac. The working
 installation was built and tested in stages.
 
+**Updating an existing installation:** stop the stack, pull the `macos` branch
+and rerun `./mac/setup-mac --with-lip-sync` before restarting. This rebuilds ASR
+with the local browser protections; pulling Python files alone is insufficient.
+Weights are not downloaded without `--download-models`.
+See [local service security](docs/LOCAL-SECURITY.md) for scope, tests and recovery.
+
 **Interrupt** cuts a reply. **Stop** ends microphone capture and playback;
 models stay loaded. Ctrl-C in the launch terminal shuts down the stack.
 Use `--port 18181` if port 18180 is occupied.

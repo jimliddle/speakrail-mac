@@ -365,7 +365,8 @@ class Session:
 
     async def start(self):
         self.http = aiohttp.ClientSession()
-        self.asr_ws = await websockets.connect(self._asr_url(), max_size=None)
+        self.asr_ws = await websockets.connect(self._asr_url(), max_size=None,
+                                               additional_headers={"X-Speakrail-Client": "local-controller"})
         created = json.loads(await self.asr_ws.recv())
         if created.get("type") != "session.created":
             raise RuntimeError(f"asr: {created}")
@@ -376,7 +377,8 @@ class Session:
     async def reconnect_asr(self):
         """Manual: open a fresh ASR session (for when the decoder has gone mute)."""
         old = self.asr_ws
-        ws = await websockets.connect(self._asr_url(), max_size=None)
+        ws = await websockets.connect(self._asr_url(), max_size=None,
+                                      additional_headers={"X-Speakrail-Client": "local-controller"})
         created = json.loads(await ws.recv())
         if created.get("type") != "session.created":
             raise RuntimeError(f"asr: {created}")

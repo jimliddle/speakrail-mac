@@ -68,6 +68,13 @@ async def ready(process, port, path=None, timeout=180):
                 if path:
                     async with http.get(f"http://127.0.0.1:{port}{path}",
                                         timeout=aiohttp.ClientTimeout(total=2)) as response:
+                        if response.status == 200 and path == "/health":
+                            async with http.get(f"http://127.0.0.1:{port}{path}",
+                                                headers={"Origin": "https://untrusted.example"},
+                                                timeout=aiohttp.ClientTimeout(total=2)) as probe:
+                                if probe.status != 403:
+                                    raise RuntimeError("Backend lacks browser protection; rerun mac/setup-mac and restart.")
+                            return time.monotonic() - start
                         if response.status == 200:
                             return time.monotonic() - start
                 else:
@@ -96,7 +103,7 @@ async def start_asr(services):
                                             "--config", path])
     seconds = await ready(process, port, "/health")
     bridge = services.start("asr-bridge", [ROOT / ".venv/bin/python", ROOT.parent / "services/asr/bridge.py",
-                                          "--host", "127.0.0.1", "--port", bridge_port,
+                                          "--host", "127.0.0.1", "--port", bridge_port, "--local-controller-only",
                                           "--acpp", f"127.0.0.1:{port}", "--model", "voxtral-rt",
                                           "--head", ROOT / "models/turn_head/turn_head.vxth.json"])
     await ready(bridge, bridge_port)
@@ -105,11 +112,12 @@ async def start_asr(services):
 
 async def start_tts(services):
     port = free_port()
-    process = services.start("tts-mlx", [ROOT / ".tts-venv/bin/python", "-m", "breeze_infer.api",
+    process = services.start("tts-mlx", [ROOT / ".tts-venv/bin/python", ROOT / "breeze_local.py",
                                          ROOT / "models/breeze-mlx-8bit", "--backend", "mlx",
                                          "--host", "127.0.0.1", "--port", port, "--ws-port", "disabled",
                                          "--voices-dir", ROOT / "test-voices", "--chunk-first", "1",
-                                         "--chunk-max", "1"], cwd=ROOT / "breeze-mlx-candidate")
+                                         "--chunk-max", "1"], cwd=ROOT / "breeze-mlx-candidate",
+                             extra_env={"PYTHONPATH": str(ROOT / "breeze-mlx-candidate")})
     seconds = await ready(process, port, "/health", timeout=240)
     return port, seconds
 
@@ -126,7 +134,8 @@ async def synthesize(port, text, filename=None, abort=False):
     first = None
     chunks = 0
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as http:
-        async with http.post(f"http://127.0.0.1:{port}/v1/audio/speech", data=data) as response:
+        async with http.post(f"http://127.0.0.1:{port}/v1/audio/speech", data=data,
+                             headers={"X-Speakrail-Client": "local-controller"}) as response:
             if response.status != 200:
                 raise RuntimeError(f"TTS {response.status}: {await response.text()}")
             sr = int(response.headers.get("X-Sample-Rate", 24000))

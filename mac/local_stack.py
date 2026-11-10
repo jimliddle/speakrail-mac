@@ -65,7 +65,8 @@ async def probe(port, interrupt=False):
     async with aiohttp.ClientSession() as http:
         async with http.get(f"http://127.0.0.1:{port}/ws", headers={"Origin": "https://untrusted.example"}) as r:
             assert r.status == 403
-        async with http.ws_connect(f"http://127.0.0.1:{port}/ws") as ws:
+        async with http.ws_connect(f"http://127.0.0.1:{port}/ws",
+                                   headers={"X-Speakrail-Client": "local-controller"}) as ws:
             async def receiver():
                 nonlocal first_audio
                 seen = set()

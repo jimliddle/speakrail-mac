@@ -27,7 +27,8 @@ async def run():
     assert engine.cache_salt
     report = {"load": model.audit, "checks": []}
     try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as http:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120),
+                                         headers={"X-Speakrail-Client": "local-controller"}) as http:
             await engine.warm(http, c.ids)
             timings = []
             for _ in range(5):

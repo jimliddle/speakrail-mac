@@ -12,6 +12,7 @@ import os
 import sys
 
 from aiohttp import web
+from backend_security import aiohttp_guard
 import mlx.core as mx
 
 from gemma_mlx import ROOT, SpeakrailModel
@@ -74,7 +75,8 @@ def validate(body):
 
 
 def create_app(model):
-    app = web.Application(client_max_size=256 * 1024)
+    app = web.Application(client_max_size=256 * 1024,
+                          middlewares=[web.middleware(aiohttp_guard)])
     stats = {"completed": 0, "cancelled": 0, "active": 0}
 
     async def health(request):

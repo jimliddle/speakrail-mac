@@ -282,6 +282,9 @@ def main():
     except ValueError as error:
         ap.error(str(error))
     app = web.Application()
+    if ARGS.host == '127.0.0.1':
+        from local_browser import local_page_only
+        app.middlewares.append(local_page_only)
     if MEMORY:
         MEMORY.install(app)
     app[PREVIEW_CACHE] = {}

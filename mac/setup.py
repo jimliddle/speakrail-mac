@@ -7,6 +7,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+from patch_audio import apply_patch
 
 ROOT = Path(__file__).resolve().parent
 
@@ -43,13 +44,16 @@ def main():
             revision = subprocess.check_output(["git", "-C", str(dest), "rev-parse", "HEAD"], text=True).strip()
             if revision != source["revision"]:
                 parser.error(f"{name} is not at the pinned revision; refusing to change an existing checkout")
-            if subprocess.run(["git", "-C", str(dest), "diff", "--quiet", "HEAD"]).returncode:
+            if name == "audio.cpp":
+                apply_patch(dest, source["revision"], ROOT / "patches/audio-local-access.patch", check_only=True)
+            elif subprocess.run(["git", "-C", str(dest), "diff", "--quiet", "HEAD"]).returncode:
                 parser.error(f"{name} has local changes; refusing to build it as the pinned source")
         else:
             run("git", "init", dest)
             run("git", "-C", dest, "remote", "add", "origin", source["url"])
             run("git", "-C", dest, "fetch", "--depth", "1", "origin", source["revision"])
             run("git", "-C", dest, "checkout", "--detach", "FETCH_HEAD")
+    run("python3", ROOT / "patch_audio.py")
     for venv, lock in ((".venv", "requirements-app.lock.txt"),
                        (".mlx-venv", "requirements-mlx.lock.txt"),
                        (".tts-venv", "requirements-tts.lock.txt")):

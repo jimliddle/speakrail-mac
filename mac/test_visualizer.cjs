@@ -185,7 +185,9 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal(await page.locator('#visualizer').inputValue(), 'mesh');
     await page.goto(url + 'live/?visualizer=mesh');
     await page.waitForFunction(() => avatar.ready);
-    assert.equal((await page.request.get(url + 'live/avatar-preview')).status(), 200);
+    assert.equal((await page.request.get(url + 'live/avatar-preview', {
+      headers: { 'X-Speakrail-Client': 'local-controller' }
+    })).status(), 200);
     await page.evaluate(() => localStorage.setItem('speakrail.visualizer', 'invalid'));
     await page.goto(url);
     assert.equal(await page.locator('#visualizer').inputValue(), 'mesh', 'Invalid preference falls back to Astra');
