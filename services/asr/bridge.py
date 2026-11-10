@@ -32,6 +32,19 @@ from urllib.parse import parse_qs, urlparse
 
 from websockets.asyncio.server import serve
 
+
+def check_handshake(connection, request):
+    from http import HTTPStatus
+    from pathlib import Path
+    import sys
+    module_dir = str(Path(__file__).resolve().parents[2] / "mac")
+    if module_dir not in sys.path:
+        sys.path.insert(0, module_dir)
+    from backend_security import rejection
+    reason = rejection(request.headers.raw_items(), connection.local_address[1])
+    if reason:
+        return connection.respond(HTTPStatus.FORBIDDEN, reason + "\n")
+
 log = logging.getLogger("asr_bridge")
 FRAME_MS = 80
 ACPP_DELAY_MS = 480          # audio.cpp tokenizer_text.cpp: 0.480 s of delay pads, not configurable
@@ -85,7 +98,7 @@ async def http_post_json(host, port, path, timeout=2.0):
     """a bodyless POST to audiocpp_server -> parsed JSON body (its JSON replies carry Content-Length)"""
     reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
     try:
-        writer.write(f"POST {path} HTTP/1.1\r\nHost: {host}:{port}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode())
+        writer.write(f"POST {path} HTTP/1.1\r\nHost: {host}:{port}\r\nX-Speakrail-Client: local-controller\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode())
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(), timeout)
     finally:
@@ -116,7 +129,7 @@ class LiveRequest:
         q = f"model={self.model}&sample_rate={self.sample_rate}&channels=1&sample_format=s16le"
         if self.live_id:
             q += f"&live_id={self.live_id}"                     # addressable by the peek route
-        head = (f"POST /v1/audio/transcriptions/live?{q} HTTP/1.1\r\nHost: {self.host}:{self.port}\r\n"
+        head = (f"POST /v1/audio/transcriptions/live?{q} HTTP/1.1\r\nHost: {self.host}:{self.port}\r\nX-Speakrail-Client: local-controller\r\n"
                 "Transfer-Encoding: chunked\r\nContent-Type: application/octet-stream\r\nAccept: text/event-stream\r\n"
                 "Connection: close\r\n\r\n")
         self.writer.write(head.encode())
@@ -514,17 +527,22 @@ async def main():
     global ARGS, HEAD_META
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--local-controller-only", action="store_true",
+                    help="Mac backend: reject browser access before opening ASR sessions")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--acpp", default="127.0.0.1:8090", help="audiocpp_server host:port")
     ap.add_argument("--model", default="voxtral-rt", help="model id in the audiocpp_server config")
     ap.add_argument("--head", default=None, help="the exported head's .json sidecar (class names); enables turn_probs")
     ARGS = ap.parse_args()
+    if ARGS.local_controller_only and ARGS.host != "127.0.0.1":
+        ap.error("The local controller bridge must bind to 127.0.0.1")
     ARGS.acpp_host, _, p = ARGS.acpp.partition(":")
     ARGS.acpp_port = int(p or 8090)
     if ARGS.head:
         HEAD_META = json.load(open(ARGS.head))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    async with serve(handler, ARGS.host, ARGS.port, max_size=None, ping_interval=20):
+    boundary = {"origins": [None], "process_request": check_handshake} if ARGS.local_controller_only else {}
+    async with serve(handler, ARGS.host, ARGS.port, max_size=1024 * 1024, ping_interval=20, **boundary):
         log.info("asr_bridge listening on ws://%s:%d/v1/transcribe -> audio.cpp %s model=%s head=%s (server_ready)",
                  ARGS.host, ARGS.port, ARGS.acpp, ARGS.model, ARGS.head)
         await asyncio.Future()
